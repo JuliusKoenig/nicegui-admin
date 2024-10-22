@@ -23,6 +23,15 @@ class BaseViewMeta(ABCMeta):
         # create cls
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
 
+        # check if cls is abstract
+        if ABC in bases:
+            cls._abstract = True
+            return cls
+        if BaseView in bases:
+            cls._abstract = True
+            return cls
+        cls._abstract = False
+
         # if name is not set, use the class name
         view_name = namespace.get("name")
         if view_name is None:
@@ -222,6 +231,7 @@ class BaseView(ABC, metaclass=BaseViewMeta):
     parameter_mode: ParameterMode
 
     # internal variables
+    _abstract: bool
     _render_model_fields: list[ModelField]
 
     def __init__(self,

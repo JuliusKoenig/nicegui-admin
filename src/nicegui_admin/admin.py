@@ -1,19 +1,14 @@
-import inspect
 import logging
-import re
-import string
 from typing import Optional, Union, Any
 
 from fastapi import FastAPI
-from fastapi.params import Param
-from fastapi.dependencies.utils import ModelField, analyze_param
 from nicegui import app, ui, APIRouter, Client
 from starlette.applications import Starlette
 from starlette.requests import Request
 
 from nicegui_admin.layouts.base import BaseLayout
 from nicegui_admin.layouts.nav_top import NavTopLayout
-from nicegui_admin.views.base import BaseView, ParameterMode
+from nicegui_admin.views.base import BaseView
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +150,10 @@ class Admin:
         # check if view is a subclass of BaseView
         if not issubclass(view, BaseView):
             raise ValueError(f"View must be a subclass of {BaseView.__name__}")
+
+        # check if view is abstract
+        if view._abstract:
+            raise ValueError(f"View '{view.__name__}' is abstract.")
 
         # check if view already exists
         if view in self.views:
