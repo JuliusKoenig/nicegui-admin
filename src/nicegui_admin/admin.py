@@ -1,19 +1,19 @@
 import inspect
 import logging
+import re
+import string
 from typing import Optional, Union, Any
 
 from fastapi import FastAPI
 from fastapi.params import Param
 from fastapi.dependencies.utils import ModelField, analyze_param
 from nicegui import app, ui, APIRouter, Client
-from nicegui.events import EventArguments
 from starlette.applications import Starlette
 from starlette.requests import Request
 
-from nicegui_admin.helpers import normalize_name, validate_name, normalize_path, validate_path
 from nicegui_admin.layouts.base import BaseLayout
 from nicegui_admin.layouts.nav_top import NavTopLayout
-from nicegui_admin.views.base import BaseView
+from nicegui_admin.views.base import BaseView, ParameterMode
 
 logger = logging.getLogger(__name__)
 
@@ -49,12 +49,16 @@ class Admin:
         self._router: APIRouter = APIRouter()
 
         # define views
-        self._views: list[tuple[type[BaseView], list[ModelField], Optional[str]]] = []  # (view, render_model_fields, render_require_event_var)
+        self._views: list[type[BaseView]] = []  # (view, render_signature, render_model_fields)
 
         # add views
         if views is not None:
             for view in views:
                 self.add_view(view)
+
+    def __str__(self):
+        base_path = self.base_path
+        return f"{self.__class__.__name__}({base_path=})"
 
     def __call__(self) -> Union[Starlette, FastAPI]:
         # check if layout is set
@@ -137,10 +141,7 @@ class Admin:
 
     @property
     def views(self) -> tuple[type[BaseView], ...]:
-        views = []
-        for view, _, _ in self._views:
-            views.append(view)
-        return tuple(views)
+        return tuple(self._views)
 
     # --- user methods ---
 
@@ -151,65 +152,23 @@ class Admin:
         ...
 
     def add_view(self, view: type[BaseView]):
+        # check if view is a subclass of BaseView
+        if not issubclass(view, BaseView):
+            raise ValueError(f"View must be a subclass of {BaseView.__name__}")
+
         # check if view already exists
         if view in self.views:
             raise ValueError(f"View '{view.__name__}' already added.")
 
-        # if name is not set, use the class name
-        if view.name is None:
-            view.name = normalize_name(view.__name__)
-
-        # validate name
-        if not validate_name(view.name):
-            raise ValueError(f"View '{view.__name__}' name '{view.name}' is invalid.")
-
-        # if path is not set, use the normalized name
-        if view.path is None:
-            view.path = normalize_path(view.name)
-
-        # validate path
-        if not validate_path(view.path):
-            raise ValueError(f"View '{view.__name__}' path '{view.path}' is invalid.")
+        # check if name already exists
+        for existing_view in self.views:
+            if existing_view.name == view.name:
+                raise ValueError(f"View with name '{view.name}' already exists")
 
         # check if path already exists
         for existing_view in self.views:
             if existing_view.path == view.path:
                 raise ValueError(f"View with path '{view.path}' already exists")
 
-        # get pydantic model fields for render method
-        render_require_event_var = None
-        render_model_fields: list[ModelField] = []
-        for param_name, param in inspect.signature(view.render).parameters.items():
-            # skip self parameter
-            if param_name == "self":
-                continue
-
-            # raise error if EventArguments is not Optional
-            if param.annotation == EventArguments:
-                raise AttributeError(f"Parameter '{param_name}' for '{view.__name__}.{view.render.__name__}' with type '{param.annotation}' must be Optional.")
-
-            # set the require event variable and continue
-            if param.annotation == Optional[EventArguments]:
-                if render_require_event_var is not None:
-                    raise AttributeError(f"Only one EventArguments parameter is allowed for '{view.__name__}.{view.render.__name__}'.")
-                render_require_event_var = param_name
-                continue
-
-            # get the field for the parameter
-            param_details = analyze_param(
-                param_name=param_name,
-                annotation=param.annotation,
-                value=param.default,
-                is_path_param=False,
-            )
-            field = param_details.field
-
-            # check if the field is a Param
-            if not isinstance(field.field_info, Param):
-                raise AttributeError(f"Parameter '{param_name}' for '{view.__name__}.{view.render.__name__}' with type '{param.annotation}' is not supported.")
-
-            # add the field to the list of fields
-            render_model_fields.append(field)
-
         # add view
-        self._views.append((view, render_model_fields, render_require_event_var))
+        self._views.append(view)

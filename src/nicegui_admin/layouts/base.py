@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Optional, Literal, Any
 from urllib.parse import urlparse
 from urllib.parse import parse_qs
 
-from nicegui import ui, background_tasks, Client
+from nicegui import ui, Client
 from nicegui.events import EventArguments
 from starlette.requests import Request
 
@@ -33,6 +33,7 @@ class BaseLayout(ABC):
         self._request: Request = request
         self._client: Client = client
         self._current_url: str = request.url.path + ("?" + request.url.query if request.url.query else "")
+        self._current_event: Optional[EventArguments] = None
 
         logger.debug(f"Loader creating loader for {self}")
         self._loader: Callable[[Literal["open", "log", "close"], Optional[str]], None] = self.get_loader()
@@ -61,23 +62,6 @@ class BaseLayout(ABC):
     def __str__(self):
         return f"{self.__class__.__name__}"
 
-    async def _open_view(self, view: "BaseView", event: Optional[EventArguments] = None) -> None:
-        await self.loader("open", f"Open view '{view.name}' ...")
-
-        with self.view_frame:
-            # add the url to the browser history if it's not already there
-            await ui.run_javascript(f"""if (window.location.pathname + window.location.search !== "{self.current_url}") {{
-            history.pushState({{page: "{self.current_url}"}}, "", "{self.current_url}");
-            }}""")
-
-            # get query parameters
-            query_params = parse_qs(urlparse(self.current_url).query)
-
-            # render the view
-            await view(event=event, query_params=query_params)
-
-        await self.loader("close")
-
     # --- properties ---
 
     @property
@@ -95,6 +79,10 @@ class BaseLayout(ABC):
     @property
     def current_url(self) -> str:
         return self._current_url
+
+    @property
+    def current_event(self) -> Optional[EventArguments]:
+        return self._current_event
 
     @property
     def header(self) -> Optional[ui.header]:
@@ -126,10 +114,10 @@ class BaseLayout(ABC):
         # open loader
         await self.loader("open", f"Loading layout {self} ...")
 
-        # # adding some navigation buttons to switch between the different pages
-        # with ui.row():
-        #     for view in self.admin.views.values():
-        #         ui.button(text=view.name, on_click=self.open_view(url=view.url)).classes("w-32")
+        # loading views
+        for view in self.admin.views:
+            await self.loader("log", f"Loading view '{view.name}' for layout {self} ...")
+            self._views.append(view(layout=self))
 
         # render header
         if self.header is not None:
@@ -158,13 +146,6 @@ class BaseLayout(ABC):
             with self.footer:
                 # render footer content
                 await self.footer_content()
-
-        # loading views
-        for view, render_model_fields, render_require_event_var in self.admin._views:
-            await self.loader("log", f"Loading view '{view.name}' for layout {self} ...")
-            self._views.append(view(admin=self.admin,
-                                    render_model_fields=render_model_fields,
-                                    render_require_event_var=render_require_event_var))
 
         # close loader
         await self.loader("close")
@@ -202,7 +183,6 @@ class BaseLayout(ABC):
                 logger.info(msg)
                 loader_log.text = msg
 
-
         # initial refresh
         loader("close")
 
@@ -215,10 +195,14 @@ class BaseLayout(ABC):
     def get_header(self) -> Optional[ui.header]:
         return ui.header(elevated=True).style("background-color: #3874c8").classes("items-center justify-between")
 
-    async def
-
     async def header_content(self) -> None:
-        ui.label("HEADER")
+        with ui.row():
+            ui.label("HEADER")
+
+            # adding some navigation buttons to switch between the different pages
+            for view in self.views:
+                ui.button(text=view.name, on_click=self.open_view(url=view.url)).classes("w-32")
+
         ui.button(on_click=lambda: self.right_drawer.toggle(), icon="menu").props("flat color=white")
 
     def get_right_drawer(self) -> Optional[ui.right_drawer]:
@@ -245,10 +229,13 @@ class BaseLayout(ABC):
         return view_frame
 
     def open_view(self, url: Optional[str] = None):
-        async def decorator(event):
-            # set the view url
+        async def open_view(event):
+            # set current url
             if url is not None:
                 self._current_url = url
+
+            # set current event
+            self._current_event = event
 
             # get view
             view = self.get_view_by_url(url=self.current_url)
@@ -257,10 +244,39 @@ class BaseLayout(ABC):
                 print(f"404: {url}")
                 return
 
+            # open loader
+            await self.loader("open", f"Open view '{view.name}' ...")
+
+            # add the url to the browser history if it's not already there
+            await ui.run_javascript(f"""if (window.location.pathname + window.location.search !== "{self.current_url}") {{
+            history.pushState({{page: "{self.current_url}"}}, "", "{self.current_url}");
+            }}""")
+
+            # parse the url
+            url_parsed = urlparse(self.current_url)
+
+            # get path parameters values
+            path_parameters_values = []
+            for sub_path in url_parsed.path[len(view.url):].split("/"):
+                if sub_path:
+                    path_parameters_values.append(sub_path)
+
+            # get query parameters
+            query_params = parse_qs(url_parsed.query)
+
+            # validate parameters for the view
+            view_args, view_kwargs, param_errors = await view.validate(path_parameters_values=path_parameters_values, query_params=query_params)
+
+            if len(param_errors) > 0:
+                raise AttributeError(f"Errors while validating parameters: {param_errors}")  # ToDo: improve error message
+
             # clear the content
-            self.view_frame.clear()  # ToDo move to _render_view
+            self.view_frame.clear()
 
-            # render the view
-            background_tasks.create(self._open_view(view=view, event=event))
+            with self.view_frame:
+                # render the view
+                await view.render(*view_args, **view_kwargs)
 
-        return decorator
+            await self.loader("close")
+
+        return open_view
