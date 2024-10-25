@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi.dependencies.utils import ModelField, request_params_to_args, analyze_param
 from fastapi.params import Param, Path as PathParam, Query as QueryParam
+from nicegui import ui
 
 if TYPE_CHECKING:
     from nicegui_admin.admin import Admin
@@ -237,7 +238,7 @@ class BaseView(ABC, metaclass=BaseViewMeta):
     def __init__(self,
                  layout: "BaseLayout"):
         self._layout: "BaseLayout" = layout
-        # self._render_model_fields: list[ModelField] = render_model_fields
+        self._elements: dict[str, ui.element] = {}
 
     def __str__(self):
         name = self.name
@@ -379,6 +380,16 @@ class BaseView(ABC, metaclass=BaseViewMeta):
         kwargs.update(validated_kwargs)
 
         return args, kwargs, param_errors
+
+    def add_element(self, name: str, element: ui.element):
+        if name in self._elements:
+            raise ValueError(f"Element '{name}' already exists")
+        self._elements[name] = element
+
+    def get_element(self, name: str) -> ui.element:
+        if name not in self._elements:
+            raise ValueError(f"Element '{name}' does not exist")
+        return self._elements[name]
 
     @abstractmethod
     async def render(self, *args, **kwargs):

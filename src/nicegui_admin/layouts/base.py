@@ -54,6 +54,7 @@ class BaseLayout(ABC):
         self._view_frame: BaseLayout.ViewFrame = self.get_view_frame()
 
         self._views: list[BaseView] = []
+        self._current_view: Optional[BaseView] = None
         self.args: tuple[Any, ...] = args
         self.kwargs: dict[str, Any] = kwargs
 
@@ -107,6 +108,10 @@ class BaseLayout(ABC):
     @property
     def views(self) -> tuple["BaseView", ...]:
         return tuple(self._views)
+
+    @property
+    def current_view(self) -> Optional["BaseView"]:
+        return self._current_view
 
     # --- user methods ---
 
@@ -273,9 +278,16 @@ class BaseLayout(ABC):
             # clear the content
             self.view_frame.clear()
 
+            # clear current view elements
+            if self.current_view is not None:
+                self.current_view._elements = {}
+
+            # set current view
+            self._current_view = view
+
             with self.view_frame:
                 # render the view
-                await view.render(*view_args, **view_kwargs)
+                await self.current_view.render(*view_args, **view_kwargs)
 
             await self.loader("close")
 

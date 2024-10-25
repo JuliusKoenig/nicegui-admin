@@ -60,6 +60,9 @@ class TestModel(BaseModel):
     #                                   {"test_str": "asd", "test_int": 456, "test_float": 456.789, "test_bool": False}])
 
 
+test = TestModel()
+
+
 class MyConverter(Converter):
     ...
     # @register_field_converter(str)
@@ -72,6 +75,14 @@ class MyGetSetView1(GetSetView):
     path = "test/{action}"
     converter = MyConverter
     get_model = TestModel
+
+    async def get(self) -> BaseModel:
+        model = test.model_copy()
+        return model
+
+    async def set(self, value: dict):
+        global test
+        test = value.copy()
 
 
 class MyCustomView1(CustomView):

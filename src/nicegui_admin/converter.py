@@ -120,5 +120,5 @@ class Converter(metaclass=ConverterMeta):
     @register_field_converter(str)
     def text_field_converter(self, field_name: str, field_info: FieldInfo):
         if field_info.annotation == str:
-            return TextField(field_info=field_info)
+            return TextField(field_name=field_name, field_info=field_info)
         return None

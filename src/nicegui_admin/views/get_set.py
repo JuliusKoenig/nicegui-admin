@@ -1,4 +1,6 @@
+from abc import abstractmethod
 from enum import Enum
+from typing import Optional
 
 from nicegui import ui
 from pydantic import BaseModel
@@ -6,6 +8,7 @@ from pydantic import BaseModel
 from nicegui_admin.converter import Converter
 from nicegui_admin.fields.base import BaseField
 from nicegui_admin.views.base import BaseViewMeta, BaseView
+from nicegui_admin.layouts.base import BaseLayout
 
 
 class GetSetViewMeta(BaseViewMeta):
@@ -66,6 +69,10 @@ class GetSetViewMeta(BaseViewMeta):
         converter_instance = converter(model=model)
         return converter_instance.convert_fields()
 
+class GetSetViewActions(Enum):
+    GET = "get"
+    SET = "set"
+
 
 class GetSetView(BaseView, metaclass=GetSetViewMeta):
     # user defined variables
@@ -77,13 +84,68 @@ class GetSetView(BaseView, metaclass=GetSetViewMeta):
     _get_model_fields: list[BaseField]
     _set_model_fields: list[BaseField]
 
-    class Actions(Enum):
-        GET = "get"
-        SET = "set"
 
-    async def render(self, action: Actions, *args, **kwargs):
-        ui.label(f"{self}").classes("text-2xl")
-        ui.label(f"Default render method")
-        ui.label(f"{action=}").classes("text-lg")
-        ui.label(f"{args=}").classes("text-lg")
-        ui.label(f"{kwargs=}").classes("text-lg")
+
+    def __init__(self,
+                 layout: BaseLayout):
+        super().__init__(layout=layout)
+
+        self._current_action: Optional[GetSetViewActions] = None
+
+    @property
+    def current_action(self) -> GetSetViewActions:
+        if self._current_action is None:
+            raise ValueError("Current action is not set")
+        return self._current_action
+
+    async def render(self, action: GetSetViewActions):
+        if action == GetSetViewActions.GET:
+            # set current action
+            self._current_action = action
+            # get model
+            model = await self.get()
+            # render get
+            await self.render_get(model=model)
+        elif action == GetSetViewActions.SET:
+            # set current action
+            self._current_action = action
+            # get model
+            model = await self.get()
+            # render set
+            await self.render_set(model=model)
+        else:
+            raise ValueError(f"Invalid action: {action}")
+
+    async def render_get(self, model: BaseModel):
+        with ui.grid(columns=2):
+            for field in self._get_model_fields:
+                # get field value
+                value = getattr(model, field.field_name)
+                # render field
+                label_element, value_element = await field.render_get(value=value)
+                # add elements to view
+                if label_element is not None:
+                    self.add_element(name=f"field_{field.field_name}_label", element=label_element)
+                if value_element is not None:
+                    self.add_element(name=f"field_{field.field_name}_value", element=value_element)
+
+    async def render_set(self, model: BaseModel):
+        with ui.grid(columns=2):
+            for field in self._set_model_fields:
+                # get field value
+                value = getattr(model, field.field_name)
+                # render field
+                label_element, value_element = await field.render_set(value=value)
+                # add elements to view
+                if label_element is not None:
+                    self.add_element(name=f"field_{field.field_name}_label", element=label_element)
+                if value_element is not None:
+                    self.add_element(name=f"field_{field.field_name}_value", element=value_element)
+
+    @abstractmethod
+    async def get(self) -> BaseModel:
+        ...
+
+    @abstractmethod
+    async def set(self, value: BaseModel) -> None:
+        ...

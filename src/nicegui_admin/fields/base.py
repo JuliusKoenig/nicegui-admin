@@ -1,23 +1,29 @@
 from abc import ABC, abstractmethod
-from enum import Enum
+from typing import Any
 
 from nicegui import ui
 from pydantic.fields import FieldInfo
 
 
 class BaseField(ABC):
-    ui_element_list: ui.element
-    ui_element_get: ui.element
-    ui_element_set: ui.element
-
-    class Mode(Enum):
-        LIST = "list"
-        GET = "get"
-        SET = "set"
-
-    def __init__(self, field_info: FieldInfo):
+    def __init__(self, field_name: str, field_info: FieldInfo):
+        self.field_name = field_name
         self.field_info = field_info
 
+    async def get_title(self) -> str:
+        title = self.field_info.title
+        if title is None:
+            title = self.field_name
+        return title
+
     @abstractmethod
-    def render(self, mode: Mode, *args, **kwargs) -> ui.element:
+    async def render_list(self, value: Any) -> ui.element:
+        ...
+
+    @abstractmethod
+    async def render_get(self, value: Any) -> tuple[ui.element, ui.element]:
+        ...
+
+    @abstractmethod
+    async def render_set(self, value: Any) -> tuple[ui.element, ui.element]:
         ...
