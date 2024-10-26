@@ -211,13 +211,13 @@ class BaseLayout(ABC):
         ui.button(on_click=lambda: self.right_drawer.toggle(), icon="menu").props("flat color=white")
 
     def get_right_drawer(self) -> Optional[ui.right_drawer]:
-        return ui.right_drawer(fixed=False).style("background-color: #ebf1fa").props("bordered")
+        return ui.right_drawer(value=False, fixed=False).style("background-color: #ebf1fa").props("bordered")
 
     async def right_drawer_content(self) -> None:
         ui.label("RIGHT DRAWER")
 
     def get_left_drawer(self) -> Optional[ui.left_drawer]:
-        return ui.left_drawer(top_corner=True, bottom_corner=True).style("background-color: #d7e3f4")
+        return ui.left_drawer(value=False, top_corner=True, bottom_corner=True).style("background-color: #d7e3f4")
 
     async def left_drawer_content(self) -> None:
         ui.label("LEFT DRAWER")

@@ -55,6 +55,14 @@ class BaseViewMeta(ABCMeta):
         # set normalized path
         cls.path = normalized_path
 
+        # if allow_path_parameter_defaults is not set, use the default
+        view_allow_path_parameter_defaults = namespace.get("allow_path_parameter_defaults")
+        if view_allow_path_parameter_defaults is None:
+            view_allow_path_parameter_defaults = False
+
+        # set allow_path_parameter_defaults
+        cls.allow_path_parameter_defaults = view_allow_path_parameter_defaults
+
         # is parameter mode is not set, use the default
         view_parameter_mode = namespace.get("parameter_mode")
         if view_parameter_mode is None:
@@ -73,7 +81,8 @@ class BaseViewMeta(ABCMeta):
         # get pydantic model fields for render method
         render_model_fields = mcs.get_pydanctic_model_fields_for_render_method(cls_name=name,
                                                                                render_method=getattr(cls, "render"),
-                                                                               path_parameters=path_parameters)
+                                                                               path_parameters=path_parameters,
+                                                                               allow_path_parameter_defaults=view_allow_path_parameter_defaults)
 
         # set render_model_fields
         cls._render_model_fields = render_model_fields
@@ -155,7 +164,11 @@ class BaseViewMeta(ABCMeta):
         return normalized_path, path_parameters
 
     @classmethod
-    def get_pydanctic_model_fields_for_render_method(mcs, cls_name: str, render_method: callable, path_parameters: dict[str, bool]) -> list[ModelField]:
+    def get_pydanctic_model_fields_for_render_method(mcs,
+                                                     cls_name: str,
+                                                     render_method: callable,
+                                                     path_parameters: dict[str, bool],
+                                                     allow_path_parameter_defaults: bool) -> list[ModelField]:
         # get pydantic model fields for render method
         render_signature = inspect.signature(render_method)
         render_model_fields: list[ModelField] = []
@@ -181,8 +194,11 @@ class BaseViewMeta(ABCMeta):
             # set 'capture_all_following' to json_schema_extra and remove it from path_parameters
             if is_path_param:
                 if param.default is not param.empty:
-                    raise AttributeError(f"Path parameter '{param.name}' for '{cls_name}.{render_method.__name__}' cannot have a default value")
-
+                    if allow_path_parameter_defaults:
+                        field.field_info.default = param.default
+                    else:
+                        raise AttributeError(f"Path parameter '{param.name}' for '{cls_name}.{render_method.__name__}' cannot have a default value. "
+                                             f"Use allow_path_parameter_defaults=True to allow default values.")
 
                 if capture_all_following_set is not None:
                     raise AttributeError(f"Path parameter '{param.name}' for '{cls_name}.{render_method.__name__}' is not allowed after '{capture_all_following_set}'")
@@ -229,6 +245,7 @@ class BaseView(ABC, metaclass=BaseViewMeta):
     # user defined variables
     name: str
     path: str
+    allow_path_parameter_defaults: bool
     parameter_mode: ParameterMode
 
     # internal variables

@@ -1,5 +1,8 @@
+from typing import Any
+
 import uvicorn
 from fastapi import FastAPI
+from nicegui import ui
 from pydantic import BaseModel, Field
 from pydantic.fields import FieldInfo
 from starlette.applications import Starlette
@@ -12,28 +15,26 @@ from nicegui_admin.views.get_set import GetSetView
 
 app = Starlette()
 
-api = FastAPI()
-
-
-@api.get("/")
-async def read_root(qwe: int, list_str: list[str]):
-    return {"Hello": "World"}
-
-
-app.mount("/api", api)
-
 
 class MyLayout(NavTopLayout):
     ...
 
 
+class SubTestModel(BaseModel):
+    sub_test_str: str = Field(default="qwe_sub",
+                              title="Test string sub",
+                              description="Test string sub description",
+                              examples=["qwe_sub", "asd_sub"],
+                              max_length=4)
+
+
 class TestModel(BaseModel):
-    test_str: str = "qwe"
-    # test_str: str = Field(default="qwe",
-    #                       title="Test string",
-    #                       description="Test string description",
-    #                       examples=["qwe", "asd"],
-    #                       max_length=10)
+    # test_str: str = "qwe"
+    test_str: str = Field(default="qwe",
+                          title="Test string",
+                          description="Test string description",
+                          examples=["qwe", "asd"],
+                          max_length=3)
     # test_int: int = Field(default=123, title="Test integer",
     #                       description="Test integer description",
     #                       examples=[123, 456],
@@ -59,6 +60,8 @@ class TestModel(BaseModel):
     #                         examples=[{"test_str": "qwe", "test_int": 123, "test_float": 123.456, "test_bool": True},
     #                                   {"test_str": "asd", "test_int": 456, "test_float": 456.789, "test_bool": False}])
 
+    test_sub: SubTestModel = Field(default=SubTestModel(), title="Test sub model", description="Test sub model description")
+
 
 test = TestModel()
 
@@ -76,13 +79,13 @@ class MyGetSetView1(GetSetView):
     converter = MyConverter
     get_model = TestModel
 
-    async def get(self) -> BaseModel:
-        model = test.model_copy()
-        return model
+    async def get(self) -> dict[str, Any]:
+        data = test.model_dump()
+        return data
 
-    async def set(self, value: dict):
+    async def set(self, data: dict[str, Any]):
         global test
-        test = value.copy()
+        test = TestModel(**data)
 
 
 class MyCustomView1(CustomView):
@@ -103,8 +106,23 @@ class MyAdmin(Admin):
     ...
 
 
+api = FastAPI()
+
+
+@api.post("/")
+async def read_root(qwe: TestModel):
+    return {"Hello": "World"}
+
+
+app.mount("/api", api)
+
+# @ui.page("/")
+# async def main(qwe: int = 123):
+#     ui.button("Open admin")
+
+# ui.run(show=False, port=8000)
+
 if __name__ == "__main__":
-    # ui.run(native=True)
     uvicorn.run(
         MyAdmin(
             base_app=app,

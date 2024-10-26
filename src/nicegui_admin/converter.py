@@ -1,12 +1,14 @@
 import inspect
 from abc import ABCMeta
-from typing import Optional, Union
+from typing import Optional, Union, Callable
 
 from pydantic import BaseModel
 from pydantic.fields import FieldInfo
 
 from nicegui_admin.fields.base import BaseField
+from nicegui_admin.fields.base_model_field import BaseModelField
 from nicegui_admin.fields.text_field import TextField
+from nicegui_admin.views.field import FieldView
 
 _CONVERTER_METHODS: dict[type, callable] = {}
 
@@ -91,12 +93,12 @@ class ConverterMeta(ABCMeta):
 class Converter(metaclass=ConverterMeta):
     _converter_methods: dict[type, callable]
 
-    def __init__(self, model: type[BaseModel]):
-        self.model = model
+    def __init__(self):
+        ...
 
-    def convert_fields(self) -> list[BaseField]:
+    def convert_fields(self, model: type[BaseModel]) -> list[Callable[[FieldView], BaseField]]:
         converted_fields = []
-        for field_name, field in self.model.model_fields.items():
+        for field_name, field in model.model_fields.items():
             # get converter method
             converter_method = self.get_converter_method(field.annotation)
             if converter_method is None:
@@ -105,9 +107,9 @@ class Converter(metaclass=ConverterMeta):
             # call converter method
             converted_field = converter_method(self, *(field_name, field))
 
-            # check if converted_field is a BaseField
-            if not isinstance(converted_field, BaseField):
-                raise ValueError(f"Converter method for type '{field.annotation}' must return a BaseField")
+            # check if converted_field is a callable
+            if not callable(converted_field):
+                raise ValueError(f"Converter method for type '{field.annotation}' must return a callable")
 
             # append converted_field
             converted_fields.append(converted_field)
@@ -115,10 +117,23 @@ class Converter(metaclass=ConverterMeta):
         return converted_fields
 
     def get_converter_method(self, type_: type) -> Optional[callable]:
+        # check if type_ is a subclass of BaseModel
+        if issubclass(type_, BaseModel):
+            return self._converter_methods.get(BaseModel)
         return self._converter_methods.get(type_)
 
     @register_field_converter(str)
     def text_field_converter(self, field_name: str, field_info: FieldInfo):
-        if field_info.annotation == str:
-            return TextField(field_name=field_name, field_info=field_info)
-        return None
+        return lambda view: TextField(view=view, field_name=field_name, field_info=field_info)
+
+    @register_field_converter(BaseModel)
+    def base_model_field_converter(self, field_name: str, field_info: FieldInfo):
+        # get model
+        model = field_info.annotation
+        if not issubclass(model, BaseModel):
+            raise ValueError(f"Model '{model}' must be a subclass of BaseModel")
+
+        # get fields from model
+        fields = self.convert_fields(model=model)
+
+        return lambda view: BaseModelField(view=view, field_name=field_name, field_info=field_info, field_methods=fields)
