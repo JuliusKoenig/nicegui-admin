@@ -1,11 +1,12 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Any, Optional
+from typing import Any, Optional, TYPE_CHECKING, Union
 
 from nicegui import ui
 from nicegui.events import UiEventArguments
 
-from nicegui_admin.views.field import FieldView
+if TYPE_CHECKING:
+    from nicegui_admin.views.field import FieldView
 
 
 class FieldMode(Enum):
@@ -15,18 +16,26 @@ class FieldMode(Enum):
 
 
 class BaseField(ABC):
+    # user defined
     enable_title: bool = True
     enable_help: bool = True
+
+    # internal
+    abstract: bool = True
+    field_annotation: Optional[type] = None
+    sub_fields: Union[None, list[type["BaseField"]], dict[str, type["BaseField"]]] = None
 
     def __init__(self,
                  view: "FieldView",
                  field_name: str,
+                 parent: Optional["BaseField"] = None,
                  field_title: Optional[str] = None,
                  field_description: Optional[str] = None,
                  field_examples: Optional[list[str]] = None):
 
         self._view = view
         self._field_name = field_name
+        self._parent = parent
         self._field_title = field_title
         self._field_description = field_description
         self._field_examples = field_examples

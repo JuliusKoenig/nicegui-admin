@@ -1,10 +1,9 @@
 from typing import Any, Optional, TYPE_CHECKING
 
-from nicegui_admin.views.field import FieldView
 from nicegui_admin.fields.base import BaseField, FieldMode
 
 if TYPE_CHECKING:
-    from nicegui_admin.converter import CONVERTER_METHODS_RESULT
+    from nicegui_admin.views.field import FieldView
 
 
 class BaseModelField(BaseField):
@@ -14,20 +13,21 @@ class BaseModelField(BaseField):
     def __init__(self,
                  view: "FieldView",
                  field_name: str,
-                 field_methods: list["CONVERTER_METHODS_RESULT"],
+                 parent: Optional["BaseField"] = None,
                  field_title: Optional[str] = None,
                  field_description: Optional[str] = None,
                  field_examples: Optional[list[str]] = None):
         super().__init__(view=view,
                          field_name=field_name,
+                         parent=parent,
                          field_title=field_title,
                          field_description=field_description,
                          field_examples=field_examples)
 
         self._current_fields: list["BaseField"] = []
-        for field_method in field_methods:
+        for field_name, field in self.sub_fields.items():
             # call field method
-            field = field_method(self.view)
+            field = field(view=self.view, field_name=field_name, parent=self)
 
             # append field
             self._current_fields.append(field)

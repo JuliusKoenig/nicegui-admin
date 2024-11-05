@@ -9,6 +9,7 @@ from nicegui.events import UiEventArguments
 
 from nicegui_admin.layouts.base import BaseLayout
 from nicegui_admin.views.base import BaseView, BaseViewMeta
+from nicegui_admin.converter import Converter
 if TYPE_CHECKING:
     from nicegui_admin.fields.base import FieldMode, BaseField
 
@@ -28,10 +29,23 @@ class FieldViewMeta(BaseViewMeta):
             field_margin = 4
         cls.field_margin = field_margin
 
+        # if converter is not set, use default converter
+        view_converter = namespace.get("converter")
+        if view_converter is None:
+            view_converter = Converter
+
+        # set view converter
+        cls.converter = view_converter()
+
         return cls
 
+
 class FieldView(BaseView, metaclass=FieldViewMeta):
+    # user defined
     field_margin: int
+
+    # internal
+    converter: Converter
 
     def __init__(self,
                  layout: BaseLayout):
@@ -60,16 +74,16 @@ class FieldView(BaseView, metaclass=FieldViewMeta):
             raise ValueError("Current data is not set")
         return MappingProxyType(self._current_data)
 
-    async def init_fields(self, field_methods: list[Callable[["FieldView"], "BaseField"]], current_model: type[BaseModel], current_data: dict[str, Any]):
+    async def init_fields(self, fields: dict[str, type["BaseField"]], current_model: type[BaseModel], current_data: dict[str, Any]):
         # initialize current fields
         self._current_fields = []
 
         # set loader text
         await self.layout.loader("log", "Initializing fields")
 
-        for field_method in field_methods:
+        for field_name, field in fields.items():
             # call field method
-            field = field_method(self)
+            field = field(view=self, field_name=field_name)
 
             # append field
             self._current_fields.append(field)

@@ -2,11 +2,11 @@ from typing import Any, Optional, TYPE_CHECKING
 
 from nicegui import ui
 
-from nicegui_admin.views.field import FieldView
 from nicegui_admin.fields.base import BaseField, FieldMode
 
 if TYPE_CHECKING:
-    from nicegui_admin.converter import Converter, CONVERTER_METHODS_SIGNATURE
+    from nicegui_admin.views.field import FieldView
+    from nicegui_admin.converter import Converter
 
 
 class ListField(BaseField):
@@ -16,28 +16,18 @@ class ListField(BaseField):
     def __init__(self,
                  view: "FieldView",
                  field_name: str,
-                 converter: "Converter",
-                 converter_methods: list["CONVERTER_METHODS_SIGNATURE"],
+                 parent: Optional["BaseField"] = None,
                  field_title: Optional[str] = None,
                  field_description: Optional[str] = None,
                  field_examples: Optional[list[str]] = None):
         super().__init__(view=view,
                          field_name=field_name,
+                            parent=parent,
                          field_title=field_title,
                          field_description=field_description,
                          field_examples=field_examples)
 
-        self._converter = converter
-        self._converter_methods: list["CONVERTER_METHODS_SIGNATURE"] = converter_methods
         self._current_fields: list["BaseField"] = []
-
-    @property
-    def converter(self) -> "Converter":
-        return self._converter
-
-    @property
-    def converter_methods(self) -> list["CONVERTER_METHODS_SIGNATURE"]:
-        return self._converter_methods
 
     @property
     def current_fields(self) -> tuple["BaseField", ...]:
@@ -62,15 +52,11 @@ class ListField(BaseField):
         # self.view.add_element(name=f"field_{self.field_name}_body", element=value_element)
 
     async def add_element(self, value: Any) -> None:
-        for converter_method in self.converter_methods:
+        for field in self.sub_fields:
             # call field method
-            field_method = converter_method(self.converter,
-                                            field_name=str(len(self._current_fields)),
-                                            field_annotation=str,
-                                            field_title=None,
-                                            field_description=None,
-                                            field_examples=None)
-            field = field_method(self.view)
+            field = field(view=self.view,
+                          field_name=str(len(self._current_fields)),
+                          parent=self)
 
             print()
         print()

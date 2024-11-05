@@ -27,14 +27,6 @@ class GetSetViewMeta(FieldViewMeta):
         if cls._abstract:
             return cls
 
-        # if converter is not set, use default converter
-        view_converter = namespace.get("converter")
-        if view_converter is None:
-            view_converter = Converter
-
-        # set view converter
-        cls.converter = view_converter
-
         # if get_model is not set, raise error
         view_get_model = namespace.get("get_model")
         if view_get_model is None:
@@ -52,13 +44,13 @@ class GetSetViewMeta(FieldViewMeta):
         cls.set_model = view_set_model
 
         # convert view get model fields
-        view_get_model_fields = mcs.convert_view_fields(model=view_get_model, converter=view_converter)
+        view_get_model_fields = cls.converter.convert_fields(model=view_get_model)
 
         # set view get model fields
         cls._get_model_fields = view_get_model_fields
 
         # convert view set model fields
-        view_set_model_fields = mcs.convert_view_fields(model=view_set_model, converter=view_converter)
+        view_set_model_fields = cls.converter.convert_fields(model=view_set_model)
 
         # set view set model fields
         cls._set_model_fields = view_set_model_fields
@@ -71,10 +63,6 @@ class GetSetViewMeta(FieldViewMeta):
             view_path += "/{action}"
         return super().get_normalized_view_path_and_path_parameters(view_path=view_path)
 
-    @classmethod
-    def convert_view_fields(mcs, model: type[BaseModel], converter: type[Converter]) -> list[Callable[[FieldView], BaseField]]:
-        converter_instance = converter()
-        return converter_instance.convert_fields(model=model)
 
 
 class GetSetViewActions(Enum):
@@ -89,8 +77,8 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
     set_model: type[BaseModel]
 
     # internal variables
-    _get_model_fields: list[Callable[[FieldView], BaseField]]
-    _set_model_fields: list[Callable[[FieldView], BaseField]]
+    _get_model_fields: dict[str, type[BaseField]]
+    _set_model_fields: dict[str, type[BaseField]]
 
     def __init__(self,
                  layout: BaseLayout):
@@ -118,7 +106,7 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
     async def render(self, action: GetSetViewActions = GetSetViewActions.GET):
         if action == GetSetViewActions.GET:
             # initialize current fields
-            await self.init_fields(field_methods=self._get_model_fields,
+            await self.init_fields(fields=self._get_model_fields,
                                    current_model=self.get_model,
                                    current_data=await self.get())
 
@@ -129,7 +117,7 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
             await self.render_get()
         elif action == GetSetViewActions.SET:
             # initialize current fields
-            await self.init_fields(field_methods=self._set_model_fields,
+            await self.init_fields(fields=self._set_model_fields,
                                    current_model=self.set_model,
                                    current_data=await self.get())
 
