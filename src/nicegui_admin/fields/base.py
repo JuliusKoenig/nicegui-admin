@@ -5,8 +5,6 @@ from typing import Any, Optional
 from nicegui import ui
 from nicegui.events import UiEventArguments
 
-from pydantic.fields import FieldInfo
-
 from nicegui_admin.views.field import FieldView
 
 
@@ -17,15 +15,21 @@ class FieldMode(Enum):
 
 
 class BaseField(ABC):
-    enable_label_element: bool = True
+    enable_title: bool = True
+    enable_help: bool = True
 
-    def __init__(self, view: "FieldView", field_name: str, field_info: FieldInfo):
-        assert isinstance(view, FieldView), f"view must be a FieldView, not {type(view)}"
-        assert isinstance(field_name, str), f"field_name must be a str, not {type(field_name)}"
-        assert isinstance(field_info, FieldInfo), f"field_info must be a FieldInfo, not {type(field_info)}"
+    def __init__(self,
+                 view: "FieldView",
+                 field_name: str,
+                 field_title: Optional[str] = None,
+                 field_description: Optional[str] = None,
+                 field_examples: Optional[list[str]] = None):
+
         self._view = view
         self._field_name = field_name
-        self._field_info = field_info
+        self._field_title = field_title
+        self._field_description = field_description
+        self._field_examples = field_examples
 
     @property
     def view(self) -> "FieldView":
@@ -36,86 +40,98 @@ class BaseField(ABC):
         return self._field_name
 
     @property
-    def field_info(self) -> FieldInfo:
-        return self._field_info
+    def field_title(self) -> str:
+        if self._field_title is None:
+            return self.field_name
+        return self._field_title
 
-    async def render(self, field_mode: FieldMode, value: Any) -> None:
-        if not self.enable_label_element:
-            ui.space()
-        else:
-            # render label
-            label_element = await self.render_label()
+    @property
+    def field_description(self) -> Optional[str]:
+        return self._field_description
 
-            # add label element to view
-            self.view.add_element(name=f"field_{self.field_name}_label", element=label_element)
+    @property
+    def field_examples(self) -> Optional[list[str]]:
+        return self._field_examples
 
-            # add help to label element
-            if await self.has_help():
-                with label_element:
-                    # render help
-                    help_element = await self.render_help()
-
-                    # add help element to view
-                    self.view.add_element(name=f"field_{self.field_name}_label_help", element=help_element)
-
-        # render value field
-        value_element = await self.render_value(field_mode=field_mode, value=value)
-
-        # add value element to view
-        self.view.add_element(name=f"field_{self.field_name}_value", element=value_element)
-
-        # add help to value element
-        if await self.has_help():
-            with value_element:
-                # render help
-                help_element = await self.render_help()
-
-                # add help element to view
-                self.view.add_element(name=f"field_{self.field_name}_value_help", element=help_element)
-
-    async def get_title(self) -> str:
-        title = self.field_info.title
-        if title is None:
-            title = self.field_name
-        return title
-
-    async def render_label(self) -> Optional[ui.label]:
-        return ui.label(text=await self.get_title())
-
-    @abstractmethod
-    async def render_value(self, field_mode: FieldMode, value: Any) -> ui.element:
-        ...
-
-    async def has_help(self) -> bool:
-        if self.field_info.description is not None:
-            return True
-        if self.field_info.examples is not None:
-            return True
-        return False
-
-    async def render_help(self) -> ui.html:
-        if self.field_info.description is not None:
-            help_caption = self.field_info.description
+    @property
+    def field_help(self) -> str:
+        if self.field_description is not None:
+            help_caption = self.field_description
         else:
             help_caption = self.field_name
         help_html = f"<b>{help_caption}</b>"
-        if self.field_info.examples is not None:
+        if self.field_examples is not None:
             help_html += "<br>Examples"
-            for example in self.field_info.examples:
+            for example in self.field_examples:
                 help_html += f"<br>- {example}"
+        return help_html
 
-        with ui.tooltip():
-            help_element = ui.html(help_html)
+    async def has_help(self) -> bool:
+        if self.field_description is not None:
+            return self.enable_help
+        if self.field_examples is not None:
+            return self.enable_help
+        return False
 
-        return help_element
+    # @property
+    # def field_info(self) -> FieldInfo:
+    #     return self._field_info
+
+    async def render(self, field_mode: FieldMode, value: Any) -> None:
+        # render frame
+        await self.render_frame()
+
+        # render field
+        with self.view.get_element(name=f"field_{self.field_name}_frame"):
+            if self.enable_title:
+                # render title
+                await self.render_title()
+
+            # render value field
+            await self.render_body(field_mode=field_mode, value=value)
+
+            # add help to value element
+            if await self.has_help():
+                # render help
+                await self.render_help()
+
+    async def render_frame(self) -> None:
+        frame = ui.card().classes("w-full")
+
+        # add frame to view
+        self.view.add_element(name=f"field_{self.field_name}_frame", element=frame)
+
+    async def render_title(self) -> None:
+        with ui.card_section().classes("p-0") as title_section:
+            title_element = ui.label(text=self.field_title)
+
+        # add title section to view
+        self.view.add_element(name=f"field_{self.field_name}_title_section", element=title_section)
+
+        # add title element to view
+        self.view.add_element(name=f"field_{self.field_name}_title", element=title_element)
 
     @abstractmethod
-    async def get_value(self, value_element: ui.element) -> Any:
+    async def render_body(self, field_mode: FieldMode, value: Any) -> None:
+        ...
+
+    async def render_help(self) -> None:
+        # get value element
+        value_element = self.view.get_element(name=f"field_{self.field_name}_body")
+        with value_element:
+            with ui.tooltip():
+                help_element = ui.html(self.field_help)
+
+        # add help element to view
+        self.view.add_element(name=f"field_{self.field_name}_help", element=help_element)
+
+    @abstractmethod
+    async def get_value(self) -> Any:
         ...
 
     async def on_change(self, event: UiEventArguments):
         await self.view.on_change(field_name=self.field_name,
-                                  value=await self.get_value(event.sender),
+                                  value=await self.get_value(),
                                   event=event)
 
     @abstractmethod

@@ -126,8 +126,7 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
             self._current_action = action
 
             # render get
-            with ui.grid(columns=2):
-                await self.render_get()
+            await self.render_get()
         elif action == GetSetViewActions.SET:
             # initialize current fields
             await self.init_fields(field_methods=self._set_model_fields,
@@ -138,52 +137,40 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
             self._current_action = action
 
             # render set
-            with ui.grid(columns=2):
-                await self.render_set()
+            await self.render_set()
         else:
             raise ValueError(f"Invalid action: {action}")
 
     async def render_get(self):
-        for field in self.current_fields:
-            # get field value
-            value = self.current_data[field.field_name]
-
-            # render field in set mode
-            await field.render(field_mode=FieldMode.GET, value=value)
+        # render fields
+        await self.render_fields(field_mode=FieldMode.GET)
 
     async def render_set(self):
-        for field in self.current_fields:
-            # get field value
-            value = self.current_data[field.field_name]
-
-            # render field in set mode
-            await field.render(field_mode=FieldMode.SET, value=value)
+        # render fields
+        await self.render_fields(field_mode=FieldMode.SET)
 
         # render controls
-        with ui.row():
+        with ui.row().classes("w-full"):
+            ui.space()
+
             # render cancel button
-            cancel_button = ui.button(text="Cancel", on_click=self.cancel)
+            cancel_button = ui.button(text="Cancel", on_click=self.cancel, icon="close").props("color=negative")
             self.add_element(name="cancel_button", element=cancel_button)
 
             # render submit button
-            submit_button = ui.button(text="Submit", on_click=self.submit)
+            submit_button = ui.button(text="Submit", on_click=self.submit, icon="check").props("color=positive")
             self.add_element(name="submit_button", element=submit_button)
 
     async def submit(self, event):
         data = {}
-        for field in self._set_model_fields:
-            # get value element
-            value_element = self.get_element(name=f"field_{field.field_name}_value")
+        for field in self.current_fields:
             # get value
-            value = await field.get_value(value_element=value_element)
+            value = await field.get_value()
             # set value
             data[field.field_name] = value
 
-        # parse data to model
-        set_model = await self.parse_set_model(**data)
-
         # set model
-        await self.set(data=set_model)
+        await self.set(data=data)
 
     async def cancel(self, event):
         print()

@@ -3,7 +3,7 @@ import re
 import string
 from abc import ABC, ABCMeta, abstractmethod
 from enum import Enum
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Union
 
 from fastapi.dependencies.utils import ModelField, request_params_to_args, analyze_param
 from fastapi.params import Param, Path as PathParam, Query as QueryParam
@@ -403,7 +403,7 @@ class BaseView(ABC, metaclass=BaseViewMeta):
             raise ValueError(f"Element '{name}' already exists")
         self._elements[name] = element
 
-    def get_element(self, name: str) -> ui.element:
+    def get_element(self, name: str) -> Union[ui.element, Any]:
         if name not in self._elements:
             raise ValueError(f"Element '{name}' does not exist")
         return self._elements[name]

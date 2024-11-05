@@ -1,17 +1,28 @@
-from typing import Any, Callable
-
-from nicegui import ui
-from pydantic.fields import FieldInfo
+from typing import Any, Optional, TYPE_CHECKING
 
 from nicegui_admin.views.field import FieldView
 from nicegui_admin.fields.base import BaseField, FieldMode
 
+if TYPE_CHECKING:
+    from nicegui_admin.converter import CONVERTER_METHODS_RESULT
+
 
 class BaseModelField(BaseField):
-    enable_label_element = True
+    enable_title = True
+    enable_help = False
 
-    def __init__(self, view: "FieldView", field_name: str, field_info: FieldInfo, field_methods: list[Callable[[FieldView], BaseField]]):
-        super().__init__(view=view, field_name=field_name, field_info=field_info)
+    def __init__(self,
+                 view: "FieldView",
+                 field_name: str,
+                 field_methods: list["CONVERTER_METHODS_RESULT"],
+                 field_title: Optional[str] = None,
+                 field_description: Optional[str] = None,
+                 field_examples: Optional[list[str]] = None):
+        super().__init__(view=view,
+                         field_name=field_name,
+                         field_title=field_title,
+                         field_description=field_description,
+                         field_examples=field_examples)
 
         self._current_fields: list["BaseField"] = []
         for field_method in field_methods:
@@ -27,23 +38,33 @@ class BaseModelField(BaseField):
             raise ValueError("Current fields are not set")
         return tuple(self._current_fields)
 
-    async def render_value(self, field_mode: FieldMode, value: dict[str, Any]) -> ui.element:
+    async def render_body(self, field_mode: FieldMode, value: dict[str, Any]) -> None:
         if field_mode == FieldMode.LIST:
             raise NotImplementedError("Not implemented")
         elif field_mode == FieldMode.GET or field_mode == FieldMode.SET:
-            with ui.grid(columns=2) as value_element:
-                for field in self.current_fields:
-                    # get field value
-                    value = value[field.field_name]
+            for field in self.current_fields:
+                # get field value
+                value = value[field.field_name]
 
-                    # render field in set mode
-                    await field.render(field_mode=field_mode, value=value)
+                # render field
+                await field.render(field_mode=field_mode, value=value)
+
+            # get frame element as value element
+            value_element = self.view.get_element(f"field_{self.field_name}_frame")
         else:
             raise ValueError(f"Invalid field mode: {field_mode}")
-        return value_element
 
-    async def get_value(self, value_element: ui.input) -> str:
-        return value_element.value
+        # add value element to view
+        self.view.add_element(name=f"field_{self.field_name}_body", element=value_element)
+
+    async def get_value(self) -> dict[str, Any]:
+        data = {}
+        for field in self.current_fields:
+            # get value
+            value = await field.get_value()
+            # set value
+            data[field.field_name] = value
+        return data
 
     async def set_validation_error(self, validation_error: list[dict[str, Any]]):
         print()

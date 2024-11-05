@@ -4,12 +4,13 @@ from types import MappingProxyType
 
 from fastapi.dependencies.utils import ModelField, analyze_param
 from pydantic import BaseModel
+from nicegui import ui
 from nicegui.events import UiEventArguments
 
 from nicegui_admin.layouts.base import BaseLayout
 from nicegui_admin.views.base import BaseView, BaseViewMeta
 if TYPE_CHECKING:
-    from nicegui_admin.fields.base import BaseField
+    from nicegui_admin.fields.base import FieldMode, BaseField
 
 
 class FieldViewMeta(BaseViewMeta):
@@ -17,10 +18,21 @@ class FieldViewMeta(BaseViewMeta):
         # create cls
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
 
+        # check if cls is abstract
+        if cls._abstract:
+            return cls
+
+        # if field_margin is not set, set it to 4
+        field_margin = namespace.get("field_margin")
+        if field_margin is None:
+            field_margin = 4
+        cls.field_margin = field_margin
+
         return cls
 
-
 class FieldView(BaseView, metaclass=FieldViewMeta):
+    field_margin: int
+
     def __init__(self,
                  layout: BaseLayout):
         super().__init__(layout=layout)
@@ -76,6 +88,20 @@ class FieldView(BaseView, metaclass=FieldViewMeta):
         # set current data
         self._current_data = current_data
 
+    async def render_fields(self, field_mode: "FieldMode"):
+        for i, field in enumerate(self.current_fields):
+            # get field value
+            value = self.current_data[field.field_name]
+
+            # render field
+            await field.render(field_mode=field_mode, value=value)
+            if i < len(self.current_fields) - 1:
+                await self.render_field_separator()
+        await self.render_field_separator()
+
+    async def render_field_separator(self) -> ui.separator:
+        return ui.separator().classes(f"mb-{self.field_margin}")
+
     async def on_change(self, field_name: str, value: Any, event: UiEventArguments):
         # copy current data
         current_data = self.current_data.copy()
@@ -87,8 +113,6 @@ class FieldView(BaseView, metaclass=FieldViewMeta):
         current_data_model, validation_errors = await self.parse_current_data(current_data)
 
         # set validation errors
-
-
 
         print()
 

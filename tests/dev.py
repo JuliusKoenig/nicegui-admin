@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Union
 
 import uvicorn
 from fastapi import FastAPI
@@ -21,7 +21,7 @@ class MyLayout(NavTopLayout):
 
 
 class SubTestModel(BaseModel):
-    sub_test_str: str = Field(default="qwe_sub",
+    sub_test_str: str = Field(default="sub",
                               title="Test string sub",
                               description="Test string sub description",
                               examples=["qwe_sub", "asd_sub"],
@@ -29,12 +29,12 @@ class SubTestModel(BaseModel):
 
 
 class TestModel(BaseModel):
-    # test_str: str = "qwe"
-    test_str: str = Field(default="qwe",
-                          title="Test string",
-                          description="Test string description",
-                          examples=["qwe", "asd"],
-                          max_length=3)
+    test_str: str = "qwe"
+    # test_str: str = Field(default="qwe",
+    #                       title="Test string",
+    #                       description="Test string description",
+    #                       examples=["qwe", "asd"],
+    #                       max_length=3)
     # test_int: int = Field(default=123, title="Test integer",
     #                       description="Test integer description",
     #                       examples=[123, 456],
@@ -50,10 +50,14 @@ class TestModel(BaseModel):
     #                         title="Test boolean",
     #                         description="Test boolean description",
     #                         examples=[True, False])
-    # test_list: list = Field(default=["qwe", 123, 123.456, True],
-    #                         title="Test list",
-    #                         description="Test list description",
-    #                         examples=[["qwe", 123, 123.456, True], ["asd", 456, 456.789, False]])
+    test_list: list[str] = Field(default=["qwe", "asd"],
+                                 title="Test list",
+                                 description="Test list description",
+                                 examples=[["qwe", 123, 123.456, True], ["asd", 456, 456.789, False]])
+    # test_list: list[Union[str, int, float, bool]] = Field(default=["qwe", 123, 123.456, True],
+    #                                                       title="Test list",
+    #                                                       description="Test list description",
+    #                                                       examples=[["qwe", 123, 123.456, True], ["asd", 456, 456.789, False]])
     # test_dict: dict = Field(default={"test_str": "qwe", "test_int": 123, "test_float": 123.456, "test_bool": True},
     #                         title="Test dict",
     #                         description="Test dict description",
