@@ -28,7 +28,9 @@ class ListField(BaseField):
         elif field_mode == FieldMode.GET:
             raise NotImplementedError("Not implemented")
         elif field_mode == FieldMode.SET:
-            ui.button("Add")
+            with ui.row().classes("w-full"):
+                ui.space()
+                ui.button("Add")
         else:
             raise ValueError(f"Invalid field mode: {field_mode}")
 
@@ -45,8 +47,9 @@ class ListField(BaseField):
             await field.render(field_mode=field_mode, value=value)
 
             # get value element
-            with field.frame:
+            with field.body_element:
                 ui.button("Remove")
+            field.body_element.style["flex-wrap"] = "nowrap"
 
             break
         print()

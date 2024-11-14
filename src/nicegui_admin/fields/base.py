@@ -36,12 +36,13 @@ class BaseField(ABC):
         self._parent: Union["FieldView", "BaseField"] = parent
         self._current_fields: list["BaseField"] = []
         self._field_id: Union[str, int] = field_id
-        self._frame: Union[None, ui.element, Any] = None
-        self._title_section: Union[None, ui.element, Any] = None
-        self._title: Union[None, ui.element, Any] = None
-        self._body: Union[None, ui.element, Any] = None
-        self._help_tooltip: Union[None, ui.element, Any] = None
-        self._help: Union[None, ui.element, Any] = None
+        self._frame_element: Union[None, ui.element, Any] = None
+        self._title_section_element: Union[None, ui.element, Any] = None
+        self._title_element: Union[None, ui.element, Any] = None
+        self._body_element: Union[None, ui.element, Any] = None
+        self._value_element: Union[None, ui.element, Any] = None
+        self._help_tooltip_element: Union[None, ui.element, Any] = None
+        self._help_element: Union[None, ui.element, Any] = None
 
         # add field to parent
         self.parent.add_field(self)
@@ -140,40 +141,46 @@ class BaseField(ABC):
         return help_html
 
     @property
-    def frame(self) -> Union[ui.element, Any]:
-        if self._frame is None:
+    def frame_element(self) -> Union[ui.element, Any]:
+        if self._frame_element is None:
             raise ValueError("Frame is not rendered")
-        return self._frame
+        return self._frame_element
 
     @property
-    def title_section(self) -> Union[ui.element, Any]:
-        if self._title_section is None:
+    def title_section_element(self) -> Union[ui.element, Any]:
+        if self._title_section_element is None:
             raise ValueError("Title section is not rendered")
-        return self._title_section
+        return self._title_section_element
 
     @property
-    def title(self) -> Union[ui.element, Any]:
-        if self._title is None:
+    def title_element(self) -> Union[ui.element, Any]:
+        if self._title_element is None:
             raise ValueError("Title is not rendered")
-        return self._title
+        return self._title_element
 
     @property
-    def body(self) -> Union[ui.element, Any]:
-        if self._body is None:
+    def body_element(self) -> Union[ui.element, Any]:
+        if self._body_element is None:
             raise ValueError("Body is not rendered")
-        return self._body
+        return self._body_element
 
     @property
-    def help_tooltip(self) -> Union[ui.element, Any]:
-        if self._help_tooltip is None:
+    def value_element(self) -> Union[ui.element, Any]:
+        if self._value_element is None:
+            raise ValueError("Value is not rendered")
+        return self._value_element
+
+    @property
+    def help_tooltip_element(self) -> Union[ui.element, Any]:
+        if self._help_tooltip_element is None:
             raise ValueError("Help tooltip is not rendered")
-        return self._help_tooltip
+        return self._help_tooltip_element
 
     @property
-    def help(self) -> Union[ui.element, Any]:
-        if self._help is None:
+    def help_element(self) -> Union[ui.element, Any]:
+        if self._help_element is None:
             raise ValueError("Help is not rendered")
-        return self._help
+        return self._help_element
 
     async def has_help(self) -> bool:
         if self.field_description is not None:
@@ -189,15 +196,16 @@ class BaseField(ABC):
 
     async def clear(self) -> None:
         # clear frame
-        if self._frame is not None:
-            self._frame.clear()
+        if self._frame_element is not None:
+            self._frame_element.clear()
 
         # set elements to None
-        self._frame = None
-        self._title_section = None
-        self._title = None
-        self._body = None
-        self._help = None
+        self._frame_element = None
+        self._title_section_element = None
+        self._title_element = None
+        self._body_element = None
+        self._value_element = None
+        self._help_element = None
 
         # clear fields
         for field in self._current_fields:
@@ -211,13 +219,15 @@ class BaseField(ABC):
         await self.render_frame()
 
         # render field
-        with self.frame:
+        with self.frame_element:
             if self.enable_title:
                 # render title
                 await self.render_title()
 
-            # render value field
-            await self.render_body(field_mode=field_mode, value=value)
+            # render body
+            self._body_element = ui.row().classes("w-full items-center")
+            with self.body_element:
+                await self.render_body(field_mode=field_mode, value=value)
 
             # add help to value element
             if await self.has_help():
@@ -225,13 +235,13 @@ class BaseField(ABC):
                 await self.render_help()
 
     async def render_frame(self) -> None:
-        self._frame = ui.card().classes("w-full")
+        self._frame_element = ui.card().classes("w-full")
 
     async def render_title(self) -> None:
-        self._title_section = ui.card_section().classes("p-0")
+        self._title_section_element = ui.card_section().classes("p-0")
 
-        with self.title_section:
-            self._title = ui.label(text=self.field_title)
+        with self.title_section_element:
+            self._title_element = ui.label(text=self.field_title)
 
     @abstractmethod
     async def render_body(self, field_mode: FieldMode, value: Any) -> None:
@@ -239,10 +249,10 @@ class BaseField(ABC):
 
     async def render_help(self) -> None:
         # get value element
-        with self.body:
-            self._help_tooltip = ui.tooltip()
-            with self.help_tooltip:
-                self._help = ui.html(self.field_help)
+        with self.value_element:
+            self._help_tooltip_element = ui.tooltip()
+            with self.help_tooltip_element:
+                self._help_element = ui.html(self.field_help)
 
     @abstractmethod
     async def get_value(self) -> Any:

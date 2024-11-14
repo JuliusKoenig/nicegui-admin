@@ -13,17 +13,17 @@ class TextField(BaseField):
         if field_mode == FieldMode.LIST:
             raise NotImplementedError("Not implemented")
         elif field_mode == FieldMode.GET:
-            self._body = ui.label(text=value)
+            self._value_element = ui.label(text=value)
         elif field_mode == FieldMode.SET:
-            self._body = ui.input(label=self.field_title, value=value).classes("w-full")
-            self.body.on("change", self.on_change).props("clearable")
-            self.body.validation = {"test": lambda v: False}
+            self._value_element = ui.input(label=self.field_title, value=value).classes("w-full")
+            self.value_element.on("change", self.on_change).props("clearable")
+            self.value_element.validation = {"test": lambda v: False}
         else:
             raise ValueError(f"Invalid field mode: {field_mode}")
 
     async def get_value(self) -> str:
         # get value element
-        value_element: ui.input = self.body
+        value_element: ui.input = self.value_element
 
         # get value
         value = value_element.value
