@@ -10,6 +10,7 @@ from nicegui.events import UiEventArguments
 from nicegui_admin.layouts.base import BaseLayout
 from nicegui_admin.views.base import BaseView, BaseViewMeta
 from nicegui_admin.converter import Converter
+
 if TYPE_CHECKING:
     from nicegui_admin.fields.base import FieldMode, BaseField
 
@@ -58,8 +59,6 @@ class FieldView(BaseView, metaclass=FieldViewMeta):
 
     @property
     def current_fields(self) -> tuple["BaseField", ...]:
-        if not self._current_fields:
-            raise ValueError("Current fields are not set")
         return tuple(self._current_fields)
 
     @property
@@ -75,18 +74,11 @@ class FieldView(BaseView, metaclass=FieldViewMeta):
         return MappingProxyType(self._current_data)
 
     async def init_fields(self, fields: dict[str, type["BaseField"]], current_model: type[BaseModel], current_data: dict[str, Any]):
-        # initialize current fields
-        self._current_fields = []
-
         # set loader text
         await self.layout.loader("log", "Initializing fields")
 
-        for field_name, field in fields.items():
-            # call field method
-            field = field(view=self, field_name=field_name)
-
-            # append field
-            self._current_fields.append(field)
+        # initialize current fields
+        self._current_fields = []
 
         # set current model
         self._current_model = current_model
@@ -102,10 +94,19 @@ class FieldView(BaseView, metaclass=FieldViewMeta):
         # set current data
         self._current_data = current_data
 
+        for field_id, field in fields.items():
+            # call field method
+            field(parent=self, field_id=field_id)
+
+    def add_field(self, field: "BaseField"):
+        if field in self._current_fields:
+            raise ValueError(f"Field {field} is already added")
+        self._current_fields.append(field)
+
     async def render_fields(self, field_mode: "FieldMode"):
         for i, field in enumerate(self.current_fields):
             # get field value
-            value = self.current_data[field.field_name]
+            value = self.current_data[field.field_id]
 
             # render field
             await field.render(field_mode=field_mode, value=value)
@@ -132,5 +133,3 @@ class FieldView(BaseView, metaclass=FieldViewMeta):
 
     async def parse_current_data(self, current_data: dict[str, Any]) -> tuple[BaseModel, Optional[list[dict[str, Any]]]]:
         return self._current_model_validator.validate(current_data)
-
-

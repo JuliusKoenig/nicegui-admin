@@ -1,4 +1,4 @@
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Optional, TYPE_CHECKING, Union
 
 from nicegui import ui
 
@@ -14,30 +14,14 @@ class ListField(BaseField):
     enable_help = False
 
     def __init__(self,
-                 view: "FieldView",
-                 field_name: str,
-                 parent: Optional["BaseField"] = None,
-                 field_title: Optional[str] = None,
-                 field_description: Optional[str] = None,
-                 field_examples: Optional[list[str]] = None):
-        super().__init__(view=view,
-                         field_name=field_name,
-                            parent=parent,
-                         field_title=field_title,
-                         field_description=field_description,
-                         field_examples=field_examples)
-
-        self._current_fields: list["BaseField"] = []
-
-    @property
-    def current_fields(self) -> tuple["BaseField", ...]:
-        if not self._current_fields:
-            raise ValueError("Current fields are not set")
-        return tuple(self._current_fields)
+                 parent: Union["FieldView", "BaseField"],
+                 field_id: Union[str, int]):
+        super().__init__(parent=parent,
+                         field_id=field_id)
 
     async def render_body(self, field_mode: FieldMode, value: list[Any]) -> None:
         # initialize current fields
-        [await self.add_element(v) for v in value]
+        [await self.add_element(field_mode=field_mode, value=v) for v in value]
 
         if field_mode == FieldMode.LIST:
             raise NotImplementedError("Not implemented")
@@ -51,14 +35,20 @@ class ListField(BaseField):
         # add value element to view
         # self.view.add_element(name=f"field_{self.field_name}_body", element=value_element)
 
-    async def add_element(self, value: Any) -> None:
+    async def add_element(self, field_mode: FieldMode, value: Any) -> None:
         for field in self.sub_fields:
             # call field method
-            field = field(view=self.view,
-                          field_name=str(len(self._current_fields)),
-                          parent=self)
+            field = field(parent=self,
+                          field_id=self.field_id)
 
-            print()
+            # render field
+            await field.render(field_mode=field_mode, value=value)
+
+            # get value element
+            with field.frame:
+                ui.button("Remove")
+
+            break
         print()
 
     async def get_value(self) -> list[Any]:

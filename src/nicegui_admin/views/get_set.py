@@ -64,7 +64,6 @@ class GetSetViewMeta(FieldViewMeta):
         return super().get_normalized_view_path_and_path_parameters(view_path=view_path)
 
 
-
 class GetSetViewActions(Enum):
     GET = "get"
     SET = "set"
@@ -86,6 +85,8 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
 
         self._current_action: Optional[GetSetViewActions] = None
         # self._current_data: Optional[BaseModel] = None
+        self._cancel_button: Optional[ui.button] = None
+        self._submit_button: Optional[ui.button] = None
 
     @property
     def current_action(self) -> GetSetViewActions:
@@ -103,15 +104,27 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
     # def current_data(self, data: BaseModel):
     #     self._current_data = data.model_copy()
 
+    @property
+    def cancel_button(self) -> ui.button:
+        if self._cancel_button is None:
+            raise ValueError("Cancel button is not rendered")
+        return self._cancel_button
+
+    @property
+    def submit_button(self) -> ui.button:
+        if self._submit_button is None:
+            raise ValueError("Submit button is not rendered")
+        return self._submit_button
+
     async def render(self, action: GetSetViewActions = GetSetViewActions.GET):
+        # set current action
+        self._current_action = action
+
         if action == GetSetViewActions.GET:
             # initialize current fields
             await self.init_fields(fields=self._get_model_fields,
                                    current_model=self.get_model,
                                    current_data=await self.get())
-
-            # set current action
-            self._current_action = action
 
             # render get
             await self.render_get()
@@ -120,9 +133,6 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
             await self.init_fields(fields=self._set_model_fields,
                                    current_model=self.set_model,
                                    current_data=await self.get())
-
-            # set current action
-            self._current_action = action
 
             # render set
             await self.render_set()
@@ -142,12 +152,10 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
             ui.space()
 
             # render cancel button
-            cancel_button = ui.button(text="Cancel", on_click=self.cancel, icon="close").props("color=negative")
-            self.add_element(name="cancel_button", element=cancel_button)
+            self._cancel_button = ui.button(text="Cancel", on_click=self.cancel, icon="close").props("color=negative")
 
             # render submit button
-            submit_button = ui.button(text="Submit", on_click=self.submit, icon="check").props("color=positive")
-            self.add_element(name="submit_button", element=submit_button)
+            self._submit_button = ui.button(text="Submit", on_click=self.submit, icon="check").props("color=positive")
 
     async def submit(self, event):
         data = {}

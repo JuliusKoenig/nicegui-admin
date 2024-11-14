@@ -255,7 +255,6 @@ class BaseView(ABC, metaclass=BaseViewMeta):
     def __init__(self,
                  layout: "BaseLayout"):
         self._layout: "BaseLayout" = layout
-        self._elements: dict[str, ui.element] = {}
 
     def __str__(self):
         name = self.name
@@ -397,16 +396,6 @@ class BaseView(ABC, metaclass=BaseViewMeta):
         kwargs.update(validated_kwargs)
 
         return args, kwargs, param_errors
-
-    def add_element(self, name: str, element: ui.element):
-        if name in self._elements:
-            raise ValueError(f"Element '{name}' already exists")
-        self._elements[name] = element
-
-    def get_element(self, name: str) -> Union[ui.element, Any]:
-        if name not in self._elements:
-            raise ValueError(f"Element '{name}' does not exist")
-        return self._elements[name]
 
     @abstractmethod
     async def render(self, *args, **kwargs):

@@ -278,10 +278,6 @@ class BaseLayout(ABC):
             # clear the content
             self.view_frame.clear()
 
-            # clear current view elements
-            if self.current_view is not None:
-                self.current_view._elements = {}
-
             # set current view
             self._current_view = view
 
