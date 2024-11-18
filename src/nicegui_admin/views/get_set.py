@@ -86,6 +86,7 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
         self._current_action: Optional[GetSetViewActions] = None
         # self._current_data: Optional[BaseModel] = None
         self._cancel_button_element: Optional[ui.button] = None
+        self._submit_and_continue_button_element: Optional[ui.button] = None
         self._submit_button_element: Optional[ui.button] = None
 
     @property
@@ -109,6 +110,12 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
         if self._cancel_button_element is None:
             raise ValueError("Cancel button is not rendered")
         return self._cancel_button_element
+
+    @property
+    def submit_and_continue_button_element(self) -> ui.button:
+        if self._submit_and_continue_button_element is None:
+            raise ValueError("Submit and continue button is not rendered")
+        return self._submit_and_continue_button_element
 
     @property
     def submit_button_element(self) -> ui.button:
@@ -152,10 +159,18 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
             ui.space()
 
             # render cancel button
-            self._cancel_button_element = ui.button(text="Cancel", on_click=self.cancel, icon="close").props("color=negative")
+            self._cancel_button_element = ui.button(text="Cancel", on_click=self.cancel, icon="close")
+            self.cancel_button_element.props("outline")
+            self.cancel_button_element.props("color=negative")
+
+            # render submit and continue button
+            self._submit_and_continue_button_element = ui.button(text="Submit and Continue", on_click=self.submit, icon="check")
+            self.submit_and_continue_button_element.props("outline")
+            self.submit_and_continue_button_element.props("color=positive")
 
             # render submit button
-            self._submit_button_element = ui.button(text="Submit", on_click=self.submit, icon="check").props("color=positive")
+            self._submit_button_element = ui.button(text="Submit", on_click=self.submit, icon="check")
+            self.submit_button_element.props("color=positive")
 
     async def submit(self, event):
         data = {}

@@ -1,5 +1,4 @@
-import logging
-from typing import Optional, Union, Any
+from typing import Optional, Union
 
 from fastapi import FastAPI
 from nicegui import app, ui, APIRouter, Client
@@ -9,8 +8,6 @@ from starlette.requests import Request
 from nicegui_admin.layouts.base import BaseLayout
 from nicegui_admin.layouts.nav_top import NavTopLayout
 from nicegui_admin.views.base import BaseView
-
-logger = logging.getLogger(__name__)
 
 
 class Admin:
@@ -61,8 +58,8 @@ class Admin:
             raise ValueError(f"Layout must be a subclass of {BaseLayout.__name__}")
 
         # add routes
-        self.router.page(path="/")(self._render)
-        self.router.page(path="/{_:path}")(self._render)
+        self.router.page(path="/")(self.render)
+        self.router.page(path="/{_:path}")(self.render)
 
         # include router
         app.include_router(self.router)
@@ -75,38 +72,6 @@ class Admin:
         )
 
         return self.base_app
-
-    async def _render(self, request: Request, client: Client):
-        await client.connected()
-
-        # call before connect
-        result = await self.before_render(request=request, client=client)
-        layout_args = []
-        layout_kwargs = {}
-        if type(result) is tuple:
-            if len(result) > 0:
-                # noinspection PyTypeChecker
-                layout_args = list(result[0])
-                layout_kwargs = {}
-            if len(result) > 1:
-                # noinspection PyTypeChecker
-                layout_kwargs = dict(result[1])
-            if len(result) > 2:
-                raise ValueError("Invalid result length")
-        elif result is not None:
-            layout_args = [result]
-
-        # create layout
-        layout = self.layout(admin=self, request=request, client=client, *layout_args, **layout_kwargs)
-
-        # call after connect
-        await self.after_render(request=request, client=client, layout=layout)
-
-        # render layout
-        await layout.render()
-
-        # open view
-        await layout.open_view()(None)
 
     # --- properties ---
 
@@ -140,11 +105,17 @@ class Admin:
 
     # --- user methods ---
 
-    async def before_render(self, request: Request, client: Client) -> Union[None, Any, tuple[tuple[Any, ...], dict[str, Any]]]:
-        ...
+    async def render(self, request: Request, client: Client):
+        await client.connected()
 
-    async def after_render(self, request: Request, client: Client, layout: BaseLayout) -> None:
-        ...
+        # create layout
+        layout = self.layout(admin=self, request=request, client=client)
+
+        # render layout
+        await layout.render()
+
+        # open view
+        await layout.open_view()(None)
 
     def add_view(self, view: type[BaseView]):
         # check if view is a subclass of BaseView

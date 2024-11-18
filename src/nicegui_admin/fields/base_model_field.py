@@ -20,18 +20,16 @@ class BaseModelField(BaseField):
             # call field method
             field(parent=self, field_id=field_id)
 
-    async def render_body(self, field_mode: FieldMode, value: dict[str, Any]) -> None:
-        if field_mode == FieldMode.LIST:
+    async def render_value(self, value: Optional[dict[str, Any]] = None) -> None:
+        if self.view.current_field_mode == FieldMode.LIST:
             raise NotImplementedError("Not implemented")
-        elif field_mode == FieldMode.GET or field_mode == FieldMode.SET:
+        else:
             for field in self.current_fields:
                 # get field value
                 value = value[field.field_id]
 
                 # render field
-                await field.render(field_mode=field_mode, value=value)
-        else:
-            raise ValueError(f"Invalid field mode: {field_mode}")
+                await field.render(value=value)
 
     async def get_value(self) -> dict[str, Any]:
         data = {}

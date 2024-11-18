@@ -1,6 +1,7 @@
 from typing import Any
 
 from nicegui import ui
+from typing_extensions import Optional
 
 from nicegui_admin.fields.base import BaseField, FieldMode
 
@@ -9,17 +10,15 @@ class TextField(BaseField):
     enable_title = False
     enable_help = True
 
-    async def render_body(self, field_mode: FieldMode, value: str) -> None:
-        if field_mode == FieldMode.LIST:
+    async def render_value(self, value: Optional[str] = None) -> None:
+        if self.view.current_field_mode == FieldMode.LIST:
             raise NotImplementedError("Not implemented")
-        elif field_mode == FieldMode.GET:
+        elif self.view.current_field_mode == FieldMode.GET:
             self._value_element = ui.label(text=value)
-        elif field_mode == FieldMode.SET:
+        elif self.view.current_field_mode == FieldMode.SET:
             self._value_element = ui.input(label=self.field_title, value=value).classes("w-full")
             self.value_element.on("change", self.on_change).props("clearable")
             self.value_element.validation = {"test": lambda v: False}
-        else:
-            raise ValueError(f"Invalid field mode: {field_mode}")
 
     async def get_value(self) -> str:
         # get value element

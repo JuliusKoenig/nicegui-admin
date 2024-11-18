@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from enum import Enum
-from types import GenericAlias
+from types import GenericAlias, MappingProxyType
 from typing import Any, Optional, TYPE_CHECKING, Union
 
 from pydantic import BaseModel
@@ -37,12 +37,14 @@ class BaseField(ABC):
         self._current_fields: list["BaseField"] = []
         self._field_id: Union[str, int] = field_id
         self._frame_element: Union[None, ui.element, Any] = None
-        self._title_section_element: Union[None, ui.element, Any] = None
+        self._header_element: Union[None, ui.element, Any] = None
         self._title_element: Union[None, ui.element, Any] = None
         self._body_element: Union[None, ui.element, Any] = None
         self._value_element: Union[None, ui.element, Any] = None
+        self._footer_element: Union[None, ui.element, Any] = None
         self._help_tooltip_element: Union[None, ui.element, Any] = None
         self._help_element: Union[None, ui.element, Any] = None
+        self._custom_elements: dict[str, ui.element] = {}
 
         # add field to parent
         self.parent.add_field(self)
@@ -147,10 +149,10 @@ class BaseField(ABC):
         return self._frame_element
 
     @property
-    def title_section_element(self) -> Union[ui.element, Any]:
-        if self._title_section_element is None:
-            raise ValueError("Title section is not rendered")
-        return self._title_section_element
+    def header_element(self) -> Union[ui.element, Any]:
+        if self._header_element is None:
+            raise ValueError("Header is not rendered")
+        return self._header_element
 
     @property
     def title_element(self) -> Union[ui.element, Any]:
@@ -171,6 +173,12 @@ class BaseField(ABC):
         return self._value_element
 
     @property
+    def footer_element(self) -> Union[ui.element, Any]:
+        if self._footer_element is None:
+            raise ValueError("Footer is not rendered")
+        return self._footer_element
+
+    @property
     def help_tooltip_element(self) -> Union[ui.element, Any]:
         if self._help_tooltip_element is None:
             raise ValueError("Help tooltip is not rendered")
@@ -181,6 +189,15 @@ class BaseField(ABC):
         if self._help_element is None:
             raise ValueError("Help is not rendered")
         return self._help_element
+
+    @property
+    def custom_elements(self) -> MappingProxyType[str, ui.element]:
+        return MappingProxyType(self._custom_elements)
+
+    def add_custom_element(self, key: str, element: ui.element):
+        if key in self._custom_elements:
+            raise ValueError(f"Element {key} is already added")
+        self._custom_elements[key] = element
 
     async def has_help(self) -> bool:
         if self.field_description is not None:
@@ -201,17 +218,19 @@ class BaseField(ABC):
 
         # set elements to None
         self._frame_element = None
-        self._title_section_element = None
+        self._header_element = None
         self._title_element = None
         self._body_element = None
         self._value_element = None
+        self._footer_element = None
         self._help_element = None
+        self._custom_elements = {}
 
         # clear fields
         for field in self._current_fields:
             await field.clear()
 
-    async def render(self, field_mode: FieldMode, value: Any) -> None:
+    async def render(self, value: Any) -> None:
         # clear frame
         await self.clear()
 
@@ -220,14 +239,23 @@ class BaseField(ABC):
 
         # render field
         with self.frame_element:
-            if self.enable_title:
-                # render title
-                await self.render_title()
+            # render header
+            await self.render_header()
+
+            # render title
+            with self.header_element:
+                if self.enable_title:
+                    await self.render_title()
 
             # render body
-            self._body_element = ui.row().classes("w-full items-center")
+            await self.render_body()
+
+            # render value
             with self.body_element:
-                await self.render_body(field_mode=field_mode, value=value)
+                await self.render_value(value=value)
+
+            # render footer
+            await self.render_footer()
 
             # add help to value element
             if await self.has_help():
@@ -235,17 +263,27 @@ class BaseField(ABC):
                 await self.render_help()
 
     async def render_frame(self) -> None:
-        self._frame_element = ui.card().classes("w-full")
+        self._frame_element = ui.card()
+        self.frame_element.tight()
+        self.frame_element.props("flat")
+        self.frame_element.props("bordered")
+        self.frame_element.classes("w-full m-0 p-3")
+
+    async def render_header(self) -> None:
+        self._header_element = ui.row().classes("w-full items-center")
 
     async def render_title(self) -> None:
-        self._title_section_element = ui.card_section().classes("p-0")
+        self._title_element = ui.label(text=self.field_title)
 
-        with self.title_section_element:
-            self._title_element = ui.label(text=self.field_title)
+    async def render_body(self) -> None:
+        self._body_element = ui.row().classes("w-full items-center")
 
     @abstractmethod
-    async def render_body(self, field_mode: FieldMode, value: Any) -> None:
+    async def render_value(self, value: Any = None) -> None:
         ...
+
+    async def render_footer(self) -> None:
+        self._footer_element = ui.row().classes("w-full items-center")
 
     async def render_help(self) -> None:
         # get value element

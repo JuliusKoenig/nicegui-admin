@@ -52,10 +52,18 @@ class FieldView(BaseView, metaclass=FieldViewMeta):
                  layout: BaseLayout):
         super().__init__(layout=layout)
 
+        self._current_field_mode: Optional["FieldMode"] = None
         self._current_fields: list["BaseField"] = []
         self._current_model: Optional[type[BaseModel]] = None
         self._current_model_validator: Optional[ModelField] = None
         self._current_data: Optional[dict] = None
+
+    @property
+    def current_field_mode(self) -> "FieldMode":
+        if self._current_field_mode is None:
+            raise ValueError("Current field mode is not set")
+
+        return self._current_field_mode
 
     @property
     def current_fields(self) -> tuple["BaseField", ...]:
@@ -104,15 +112,21 @@ class FieldView(BaseView, metaclass=FieldViewMeta):
         self._current_fields.append(field)
 
     async def render_fields(self, field_mode: "FieldMode"):
+        # set loader text
+        await self.layout.loader("log", "Rendering fields")
+
+        # set current field mode
+        self._current_field_mode = field_mode
+
         for i, field in enumerate(self.current_fields):
             # get field value
             value = self.current_data[field.field_id]
 
             # render field
-            await field.render(field_mode=field_mode, value=value)
-            if i < len(self.current_fields) - 1:
-                await self.render_field_separator()
-        await self.render_field_separator()
+            await field.render(value=value)
+            # if i < len(self.current_fields) - 1:
+            #     await self.render_field_separator()
+        # await self.render_field_separator()
 
     async def render_field_separator(self) -> ui.separator:
         return ui.separator().classes(f"mb-{self.field_margin}")
