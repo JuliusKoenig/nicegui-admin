@@ -1,8 +1,5 @@
 import asyncio
-from abc import ABC
-from collections.abc import Callable
-from types import MappingProxyType
-from typing import TYPE_CHECKING, Optional, Literal, Any, Union
+from typing import TYPE_CHECKING, Optional, Literal
 from urllib.parse import urlparse
 from urllib.parse import parse_qs
 
@@ -10,18 +7,27 @@ from nicegui import ui, Client
 from nicegui.events import EventArguments
 from starlette.requests import Request
 
+from nicegui_admin.loader_dialog import LoaderDialog
+from nicegui_admin.render_object import RenderObject, render_method
+
 if TYPE_CHECKING:
     from nicegui_admin.admin import Admin
     from nicegui_admin.views.base import BaseView
 
 
-class BaseLayout(ABC):
+class BaseLayout(RenderObject):
+    render_order = ["loader"]
+
+    loader_dialog_class: type[LoaderDialog] = LoaderDialog
+
     # --- internal methods ---
 
     def __init__(self,
                  admin: "Admin",
                  request: Request,
                  client: Client):
+        super().__init__()
+
         self._admin: "Admin" = admin
         self._request: Request = request
         self._client: Client = client
@@ -30,9 +36,12 @@ class BaseLayout(ABC):
         self._views: list[BaseView] = []
         self._current_view: Optional[BaseView] = None
 
-        # loading views
+        # add views
         for view in self.admin.views:
             self._views.append(view(layout=self))
+
+        # init loader dialog
+        self._loader: LoaderDialog = self.loader_dialog_class(layout=self)
 
         # self._header: Optional[ui.header] = self.get_header()
         # self._right_drawer: Optional[ui.right_drawer] = self.get_right_drawer()
@@ -41,13 +50,11 @@ class BaseLayout(ABC):
         # self._view_frame: BaseLayout.ViewFrame = self.get_view_frame()
 
         # define elements
-        self._loader_dialog_element: Optional[ui.dialog] = None
-        self._loader_frame_element: Union[None, ui.element, Any] = None
-        self._loader_spinner_element: Optional[ui.spinner] = None
-        self._loader_log_element: Optional[ui.label] = None
-        self._loader_refreshable: Optional[Callable[[Literal["open", "log", "close"], Optional[str]], None]] = None
-        self._layout_frame_element: Union[None, ui.element, Any] = None
-        self._custom_elements: dict[str, ui.element] = {}
+        # self._loader_dialog_element: Optional[ui.dialog] = None
+        # self._loader_frame_element: Union[None, ui.element, Any] = None
+        # self._loader_spinner_element: Optional[ui.spinner] = None
+        # self._loader_log_element: Optional[ui.label] = None
+        # self._loader_refreshable: Optional[Callable[[Literal["open", "log", "close"], Optional[str]], None]] = None
 
     def __str__(self):
         return f"{self.__class__.__name__}"
@@ -103,145 +110,114 @@ class BaseLayout(ABC):
         return self._current_view
 
     @property
-    def loader_dialog_element(self) -> ui.dialog:
-        if self._loader_dialog_element is None:
-            raise ValueError("Loader dialog element not rendered")
-        return self._loader_dialog_element
+    def loader(self) -> LoaderDialog:
+        return self._loader
 
-    @property
-    def loader_frame_element(self) -> Union[ui.element, Any]:
-        if self._loader_frame_element is None:
-            raise ValueError("Loader frame element not rendered")
-        return self._loader_frame_element
+    # @property
+    # def loader_dialog_element(self) -> ui.dialog:
+    #     if self._loader_dialog_element is None:
+    #         raise ValueError("Loader dialog element not rendered")
+    #     return self._loader_dialog_element
+    #
+    # @property
+    # def loader_frame_element(self) -> Union[ui.element, Any]:
+    #     if self._loader_frame_element is None:
+    #         raise ValueError("Loader frame element not rendered")
+    #     return self._loader_frame_element
+    #
+    # @property
+    # def loader_spinner_element(self) -> ui.spinner:
+    #     if self._loader_spinner_element is None:
+    #         raise ValueError("Loader spinner element not rendered")
+    #     return self._loader_spinner_element
+    #
+    # @property
+    # def loader_log_element(self) -> ui.label:
+    #     if self._loader_log_element is None:
+    #         raise ValueError("Loader log element not rendered")
+    #     return self._loader_log_element
+    #
+    # @property
+    # def layout_frame_element(self) -> Union[ui.element, Any]:
+    #     if self._layout_frame_element is None:
+    #         raise ValueError("Layout frame not rendered")
+    #     return self._layout_frame_element
 
-    @property
-    def loader_spinner_element(self) -> ui.spinner:
-        if self._loader_spinner_element is None:
-            raise ValueError("Loader spinner element not rendered")
-        return self._loader_spinner_element
-
-    @property
-    def loader_log_element(self) -> ui.label:
-        if self._loader_log_element is None:
-            raise ValueError("Loader log element not rendered")
-        return self._loader_log_element
-
-    @property
-    def layout_frame_element(self) -> Union[ui.element, Any]:
-        if self._layout_frame_element is None:
-            raise ValueError("Layout frame not rendered")
-        return self._layout_frame_element
-
-    @property
-    def custom_elements(self) -> MappingProxyType[str, ui.element]:
-        return MappingProxyType(self._custom_elements)
+    # @property
+    # def custom_elements(self) -> MappingProxyType[str, ui.element]:
+    #     return MappingProxyType(self._custom_elements)
 
     # --- user methods ---
 
-    async def render(self):
-        # render loader
-        await self.render_loader()
+    # async def render(self):
+    #     # render loader
+    #     await self.render_loader()
+    #
+    #     # open loader
+    #     await self.loader("open", f"Loading layout {self} ...")
+    #
+    #     # render layout frame
+    #     await self.render_layout_frame()
 
-        # open loader
-        await self.loader("open", f"Loading layout {self} ...")
+    # # render header
+    # if self.header is not None:
+    #     await self.loader("log", f"Loading header for layout {self} ...")
+    #     with self.header:
+    #         # render header content
+    #         await self.header_content()
+    #
+    # # render right drawer
+    # if self.right_drawer is not None:
+    #     await self.loader("log", f"Loading right drawer for layout {self} ...")
+    #     with self.right_drawer:
+    #         # render right drawer content
+    #         await self.right_drawer_content()
+    #
+    # # render left drawer
+    # if self.left_drawer is not None:
+    #     await self.loader("log", f"Loading left drawer for layout {self} ...")
+    #     with self.left_drawer:
+    #         # render left drawer content
+    #         await self.left_drawer_content()
+    #
+    # # render footer
+    # if self.footer is not None:
+    #     await self.loader("log", f"Loading footer for layout {self} ...")
+    #     with self.footer:
+    #         # render footer content
+    #         await self.footer_content()
 
-        # render layout frame
-        await self.render_layout_frame()
+    # # ToDo: remove this
+    # await asyncio.sleep(1)
+    #
+    # # close loader
+    # await self.loader("close")
 
-        # # render header
-        # if self.header is not None:
-        #     await self.loader("log", f"Loading header for layout {self} ...")
-        #     with self.header:
-        #         # render header content
-        #         await self.header_content()
-        #
-        # # render right drawer
-        # if self.right_drawer is not None:
-        #     await self.loader("log", f"Loading right drawer for layout {self} ...")
-        #     with self.right_drawer:
-        #         # render right drawer content
-        #         await self.right_drawer_content()
-        #
-        # # render left drawer
-        # if self.left_drawer is not None:
-        #     await self.loader("log", f"Loading left drawer for layout {self} ...")
-        #     with self.left_drawer:
-        #         # render left drawer content
-        #         await self.left_drawer_content()
-        #
-        # # render footer
-        # if self.footer is not None:
-        #     await self.loader("log", f"Loading footer for layout {self} ...")
-        #     with self.footer:
-        #         # render footer content
-        #         await self.footer_content()
+    # @render_method("first")
+    # def test1(self):
+    #     print("test1")
+    #
+    # @render_method("second")
+    # def test2(self):
+    #     print("test2")
 
-        # ToDo: remove this
-        await asyncio.sleep(1)
-
-        # close loader
-        await self.loader("close")
-
+    @render_method("loader")
     async def render_loader(self) -> None:
-        # render loader dialog
-        await self.render_loader_dialog()
+        await self.loader.render()
 
-        # render loader frame
-        with self.loader_dialog_element:
-            await self.render_loader_frame()
+    @render_method("header")
+    async def render_header(self) -> None:
+        await self.loader("log", f"Loading header for layout {self} ...")
 
-        with self.loader_frame_element:
-            # render loader spinner
-            await self.render_loader_spinner()
+    # async def render_layout_frame(self) -> None:
+    #     self._layout_frame_element = ui.element().classes("w-full h-full bg-gray-100")
 
-            # render loader log
-            await self.render_loader_log()
 
-        @ui.refreshable
-        def loader(command: [Literal["open", "log", "close"]], msg: Optional[str] = None) -> None:
-            if command == "open":
-                if not self.loader_dialog_element.value:
-                    self.loader_dialog_element.open()
-            elif command == "log":
-                ...
-            elif command == "close":
-                if self.loader_dialog_element.value:
-                    self.loader_dialog_element.close()
-            else:
-                raise ValueError(f"Invalid command: {command}")
-            if msg is not None:
-                self.loader_log_element.text = msg
 
-        # initial refresh
-        loader("close")
-
-        self._loader_refreshable = loader.refresh
-
-    async def render_loader_dialog(self) -> None:
-        self._loader_dialog_element = ui.dialog().props("persistent")
-
-    async def render_loader_frame(self) -> None:
-        self._loader_frame_element = ui.card(align_items="center")
-
-    async def render_loader_spinner(self) -> None:
-        self._loader_spinner_element = ui.spinner(size="lg")
-        self.loader_spinner_element.classes("mt-8 text-2xl")
-
-    async def render_loader_log(self) -> None:
-        self._loader_log_element = ui.label()
-        self.loader_log_element.classes("m-8 text-xl")
-
-    async def render_layout_frame(self) -> None:
-        self._layout_frame_element = ui.element().classes("w-full h-full bg-gray-100")
-
-    async def loader(self, command: Literal["open", "log", "close"], msg: Optional[str] = None) -> None:
-        self._loader_refreshable(command, msg)
-        await asyncio.sleep(0.001)
-
-    def add_custom_element(self, key: str, element: ui.element):
-        if key in self._custom_elements:
-            raise ValueError(f"Element {key} is already added")
-        self._custom_elements[key] = element
+    # def add_custom_element(self, key: str, element: ui.element):
+    #     if key in self._custom_elements:
+    #         raise ValueError(f"Element {key} is already added")
+    #     self._custom_elements[key] = element
 
     # def get_header(self) -> Optional[ui.header]:
     #     return ui.header(elevated=True).style("background-color: #3874c8").classes("items-center justify-between")

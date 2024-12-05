@@ -1,4 +1,8 @@
 import asyncio
+from typing import Union, Any
+
+from nicegui import ui
+
 from types import MappingProxyType
 from typing import Literal
 
@@ -8,6 +12,11 @@ RENDER_METHODS_BUILD: dict[str, list[tuple[str, RENDER_METHOD_MODES]]] = {}
 
 
 def render_method(*tags: str, mode: RENDER_METHOD_MODES = "append"):
+    tags = list(tags)
+
+    if len(tags) == 0:
+        tags = ["default"]
+
     def decorator(func):
         global RENDER_METHODS_BUILD
 
@@ -86,34 +95,78 @@ class RenderObjectMeta(type):
 
 
 class RenderObject(metaclass=RenderObjectMeta):
-    async def render(self, *tag: str):
+    render_order: list[str] = ["default"]
+
+    def __init__(self):
+        self._rendered_tags: list[str] = []
+        self._frame_element: Union[None, ui.element, Any] = None
+        self._elements: dict[str, Union[ui.element, Any]] = {}
+
+    def __getattr__(self, item):
+        if not self.is_element(key=item):
+            return super().__getattribute__(item)
+        if item not in self._elements:
+            raise AttributeError(f"Element '{item}' not found")
+        return self._elements[item]
+
+    def __setattr__(self, key, value):
+        if not self.is_element(key=key, value=value):
+            return super().__setattr__(key, value)
+        if key in self._elements:
+            raise ValueError(f"Element '{key}' already exists")
+        self._elements[key] = value
+
+    @property
+    def frame_element(self) -> Union[ui.element, Any]:
+        if self._frame_element is None:
+            raise ValueError("Frame not rendered")
+        return self._frame_element
+
+    @classmethod
+    def is_element(cls, key: str, value: Any = None) -> bool:
+        if key.startswith("_"):
+            return False
+        if value is not None:
+            if not isinstance(value, ui.element):
+                return False
+        if not key.endswith("_element"):
+            return False
+        return True
+
+    async def render_frame(self) -> None:
+        self._frame_element = ui.element()
+        self.frame_element.classes("w-full h-full")
+
+    async def render(self, *tag: str, strict: bool = False, skip_rendered: bool = True) -> None:
+        # render frame if not rendered
+        if self._frame_element is None:
+            await self.render_frame()
+
+        # get render tags
         render_tags = list(tag or self._render_methods.keys())
+
+        # order render tags
+        render_tags.sort(key=lambda x: self.render_order.index(x) if x in self.render_order else len(self.render_order))
+
         for tag in render_tags:
+            # check if tag exists
+            if tag not in self._render_methods:
+                if strict:
+                    raise ValueError(f"Tag '{tag}' not found")
+                continue
+
+            # skip if already rendered
+            if skip_rendered and tag in self._rendered_tags:
+                continue
+
+            # render tag
             for method in self._render_methods[tag]:
                 if asyncio.iscoroutinefunction(method):
-                    await method(self)
+                    with self.frame_element:
+                        await method(self)
                 else:
-                    method(self)
+                    with self.frame_element:
+                        method(self)
 
-
-class Parent(RenderObject):
-    @render_method("topic")
-    async def topic_parent(self):
-        print("topic parent")
-
-
-class Child(Parent):
-    @render_method("topic")
-    async def topic_child(self):
-        print("topic child")
-
-    @render_method("body")
-    async def body_child(self):
-        print("body child")
-
-
-child = Child()
-
-if __name__ == "__main__":
-    asyncio.run(child.render("topic"))
-    print()
+            # add to rendered tags
+            self._rendered_tags.append(tag)
