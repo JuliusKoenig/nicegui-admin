@@ -4,27 +4,17 @@ from types import GenericAlias
 from typing import Optional, Any, Union
 
 
-class Elements:
-    def __init__(self, render_o):
 
-    def clear(self):
-        for key, value in self.__dict__.items():
-            if isinstance(value, ui.element):
-                value.clear()
-        print()
+class RenderObj:
+    def __init__(self):
+        ...
 
-if __name__ == '__main__':
-    elements = Elements()
 
-    elements.asd = 1
-    elements.qwe = "2"
 
-    print(elements.asd)
-    print(elements.qwe)
+@ui.page("/")
+def page() -> None:
+    ui.label("Hello, world!")
 
-    elements.clear()
 
-    print(elements.asd)
-    print(elements.qwe)
+ui.run(show=False, port=8000)
 
-    print()

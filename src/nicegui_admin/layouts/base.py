@@ -1,5 +1,4 @@
-import asyncio
-from typing import TYPE_CHECKING, Optional, Literal
+from typing import TYPE_CHECKING, Optional, Union, Any
 from urllib.parse import urlparse
 from urllib.parse import parse_qs
 
@@ -17,8 +16,6 @@ if TYPE_CHECKING:
 
 class BaseLayout(RenderObject):
     render_order = ["loader"]
-
-    loader_dialog_class: type[LoaderDialog] = LoaderDialog
 
     # --- internal methods ---
 
@@ -40,21 +37,7 @@ class BaseLayout(RenderObject):
         for view in self.admin.views:
             self._views.append(view(layout=self))
 
-        # init loader dialog
-        self._loader: LoaderDialog = self.loader_dialog_class(layout=self)
-
-        # self._header: Optional[ui.header] = self.get_header()
-        # self._right_drawer: Optional[ui.right_drawer] = self.get_right_drawer()
-        # self._left_drawer: Optional[ui.left_drawer] = self.get_left_drawer()
-        # self._footer: Optional[ui.footer] = self.get_footer()
-        # self._view_frame: BaseLayout.ViewFrame = self.get_view_frame()
-
-        # define elements
-        # self._loader_dialog_element: Optional[ui.dialog] = None
-        # self._loader_frame_element: Union[None, ui.element, Any] = None
-        # self._loader_spinner_element: Optional[ui.spinner] = None
-        # self._loader_log_element: Optional[ui.label] = None
-        # self._loader_refreshable: Optional[Callable[[Literal["open", "log", "close"], Optional[str]], None]] = None
+        self.loader: Union[None, LoaderDialog, Any] = None
 
     def __str__(self):
         return f"{self.__class__.__name__}"
@@ -81,26 +64,6 @@ class BaseLayout(RenderObject):
     def current_event(self) -> Optional[EventArguments]:
         return self._current_event
 
-    # @property
-    # def header(self) -> Optional[ui.header]:
-    #     return self._header
-    #
-    # @property
-    # def right_drawer(self) -> Optional[ui.right_drawer]:
-    #     return self._right_drawer
-    #
-    # @property
-    # def left_drawer(self) -> Optional[ui.left_drawer]:
-    #     return self._left_drawer
-    #
-    # @property
-    # def footer(self) -> Optional[ui.footer]:
-    #     return self._footer
-    #
-    # @property
-    # def view_frame(self) -> ViewFrame:
-    #     return self._view_frame
-
     @property
     def views(self) -> tuple["BaseView", ...]:
         return tuple(self._views)
@@ -109,43 +72,16 @@ class BaseLayout(RenderObject):
     def current_view(self) -> Optional["BaseView"]:
         return self._current_view
 
-    @property
-    def loader(self) -> LoaderDialog:
-        return self._loader
+    async def render_frame(self) -> Union[ui.element, Any]:
+        frame_element = ui.element()
+        frame_element.classes("w-full h-full")
+        return frame_element
 
-    # @property
-    # def loader_dialog_element(self) -> ui.dialog:
-    #     if self._loader_dialog_element is None:
-    #         raise ValueError("Loader dialog element not rendered")
-    #     return self._loader_dialog_element
-    #
-    # @property
-    # def loader_frame_element(self) -> Union[ui.element, Any]:
-    #     if self._loader_frame_element is None:
-    #         raise ValueError("Loader frame element not rendered")
-    #     return self._loader_frame_element
-    #
-    # @property
-    # def loader_spinner_element(self) -> ui.spinner:
-    #     if self._loader_spinner_element is None:
-    #         raise ValueError("Loader spinner element not rendered")
-    #     return self._loader_spinner_element
-    #
-    # @property
-    # def loader_log_element(self) -> ui.label:
-    #     if self._loader_log_element is None:
-    #         raise ValueError("Loader log element not rendered")
-    #     return self._loader_log_element
-    #
-    # @property
-    # def layout_frame_element(self) -> Union[ui.element, Any]:
-    #     if self._layout_frame_element is None:
-    #         raise ValueError("Layout frame not rendered")
-    #     return self._layout_frame_element
+    async def render(self, *tag: str, strict: bool = False, skip_rendered: bool = True) -> None:
+        await super().render(*tag, strict=strict, skip_rendered=skip_rendered)
 
-    # @property
-    # def custom_elements(self) -> MappingProxyType[str, ui.element]:
-    #     return MappingProxyType(self._custom_elements)
+        # close loader
+        await self.loader("close")
 
     # --- user methods ---
 
@@ -193,67 +129,10 @@ class BaseLayout(RenderObject):
     # # close loader
     # await self.loader("close")
 
-    # @render_method("first")
-    # def test1(self):
-    #     print("test1")
-    #
-    # @render_method("second")
-    # def test2(self):
-    #     print("test2")
-
-    @render_method("loader")
+    @render_method("loader", top_level=True)
     async def render_loader(self) -> None:
+        self.loader = LoaderDialog(layout=self)
         await self.loader.render()
-
-    @render_method("header")
-    async def render_header(self) -> None:
-        await self.loader("log", f"Loading header for layout {self} ...")
-
-    # async def render_layout_frame(self) -> None:
-    #     self._layout_frame_element = ui.element().classes("w-full h-full bg-gray-100")
-
-
-
-    # def add_custom_element(self, key: str, element: ui.element):
-    #     if key in self._custom_elements:
-    #         raise ValueError(f"Element {key} is already added")
-    #     self._custom_elements[key] = element
-
-    # def get_header(self) -> Optional[ui.header]:
-    #     return ui.header(elevated=True).style("background-color: #3874c8").classes("items-center justify-between")
-    #
-    # async def header_content(self) -> None:
-    #     with ui.row():
-    #         ui.label("HEADER")
-    #
-    #         # adding some navigation buttons to switch between the different pages
-    #         for view in self.views:
-    #             ui.button(text=view.name, on_click=self.open_view(url=view.url)).classes("w-32")
-    #
-    #     ui.button(on_click=lambda: self.right_drawer.toggle(), icon="menu").props("flat color=white")
-    #
-    # def get_right_drawer(self) -> Optional[ui.right_drawer]:
-    #     return ui.right_drawer(value=False, fixed=False).style("background-color: #ebf1fa").props("bordered")
-    #
-    # async def right_drawer_content(self) -> None:
-    #     ui.label("RIGHT DRAWER")
-    #
-    # def get_left_drawer(self) -> Optional[ui.left_drawer]:
-    #     return ui.left_drawer(value=False, top_corner=True, bottom_corner=True).style("background-color: #d7e3f4")
-    #
-    # async def left_drawer_content(self) -> None:
-    #     ui.label("LEFT DRAWER")
-    #
-    # def get_footer(self) -> Optional[ui.footer]:
-    #     return ui.footer().style("background-color: #3874c8")
-    #
-    # async def footer_content(self) -> None:
-    #     ui.label("FOOTER")
-    #
-    # def get_view_frame(self) -> ViewFrame:
-    #     view_frame = self.ViewFrame()
-    #     view_frame.classes("w-full p-0 bg-gray-100")
-    #     return view_frame
 
     def get_view_by_url(self, url: str) -> Optional["BaseView"]:
         if type(url) is not str:
@@ -283,6 +162,12 @@ class BaseLayout(RenderObject):
             # open loader
             await self.loader("open", f"Open view '{view.name}' ...")
 
+            # clear the frame element
+            self.frame_element.clear()
+
+            # set current view
+            self._current_view = view
+
             # add the url to the browser history if it's not already there
             await ui.run_javascript(f"""if (window.location.pathname + window.location.search !== "{self.current_url}") {{
             history.pushState({{page: "{self.current_url}"}}, "", "{self.current_url}");
@@ -301,21 +186,9 @@ class BaseLayout(RenderObject):
             query_params = parse_qs(url_parsed.query)
 
             # validate parameters for the view
-            view_args, view_kwargs, param_errors = await view.validate(path_parameters_values=path_parameters_values, query_params=query_params)
+            await view.open(path_parameters_values=path_parameters_values, query_params=query_params)
 
-            if len(param_errors) > 0:
-                raise AttributeError(f"Errors while validating parameters: {param_errors}")  # ToDo: improve error message
-
-            # clear the content
-            self.layout_frame_element.clear()
-
-            # set current view
-            self._current_view = view
-
-            with self.layout_frame_element:
-                # render the view
-                await self.current_view.render(*view_args, **view_kwargs)
-
+            # close loader
             await self.loader("close")
 
         return open_view

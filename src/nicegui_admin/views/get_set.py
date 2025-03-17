@@ -1,6 +1,6 @@
 from abc import abstractmethod
 from enum import Enum
-from typing import Optional, Any, Callable
+from typing import Optional, Any
 
 from nicegui import ui
 from pydantic import BaseModel
@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from nicegui_admin.converter import Converter
 from nicegui_admin.fields.base import BaseField, FieldMode
 from nicegui_admin.layouts.base import BaseLayout
+from nicegui_admin.render_object import render_method
 from nicegui_admin.views.field import FieldViewMeta, FieldView
 
 
@@ -83,17 +84,10 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
                  layout: BaseLayout):
         super().__init__(layout=layout)
 
-        self._current_action: Optional[GetSetViewActions] = None
         # self._current_data: Optional[BaseModel] = None
-        self._cancel_button_element: Optional[ui.button] = None
-        self._submit_and_continue_button_element: Optional[ui.button] = None
-        self._submit_button_element: Optional[ui.button] = None
-
-    @property
-    def current_action(self) -> GetSetViewActions:
-        if self._current_action is None:
-            raise ValueError("Current action is not set")
-        return self._current_action
+        self.cancel_button_element: Optional[ui.button] = None
+        self.submit_and_continue_button_element: Optional[ui.button] = None
+        self.submit_button_element: Optional[ui.button] = None
 
     # @property
     # def current_data(self) -> BaseModel:
@@ -105,72 +99,60 @@ class GetSetView(FieldView, metaclass=GetSetViewMeta):
     # def current_data(self, data: BaseModel):
     #     self._current_data = data.model_copy()
 
-    @property
-    def cancel_button_element(self) -> ui.button:
-        if self._cancel_button_element is None:
-            raise ValueError("Cancel button is not rendered")
-        return self._cancel_button_element
-
-    @property
-    def submit_and_continue_button_element(self) -> ui.button:
-        if self._submit_and_continue_button_element is None:
-            raise ValueError("Submit and continue button is not rendered")
-        return self._submit_and_continue_button_element
-
-    @property
-    def submit_button_element(self) -> ui.button:
-        if self._submit_button_element is None:
-            raise ValueError("Submit button is not rendered")
-        return self._submit_button_element
-
-    async def render(self, action: GetSetViewActions = GetSetViewActions.GET):
-        # set current action
-        self._current_action = action
-
+    async def on_open(self, action: GetSetViewActions = GetSetViewActions.GET) -> None:
+        # set field mode
         if action == GetSetViewActions.GET:
+            # set field mode to get
+            self._current_field_mode = FieldMode.GET
+
             # initialize current fields
             await self.init_fields(fields=self._get_model_fields,
                                    current_model=self.get_model,
                                    current_data=await self.get())
-
-            # render get
-            await self.render_get()
         elif action == GetSetViewActions.SET:
+            # set field mode to set
+            self._current_field_mode = FieldMode.SET
+
             # initialize current fields
             await self.init_fields(fields=self._set_model_fields,
                                    current_model=self.set_model,
                                    current_data=await self.get())
-
-            # render set
-            await self.render_set()
         else:
             raise ValueError(f"Invalid action: {action}")
 
-    async def render_get(self):
-        # render fields
-        await self.render_fields(field_mode=FieldMode.GET)
+    @render_method("get")
+    async def render_get(self) -> bool:
+        # skip if action is not set
+        if self.current_field_mode != FieldMode.GET:
+            return False
 
-    async def render_set(self):
-        # render fields
-        await self.render_fields(field_mode=FieldMode.SET)
+        return True
+
+    @render_method("set")
+    async def render_set(self) -> bool:
+        # skip if action is not set
+        if self.current_field_mode != FieldMode.SET:
+            return False
 
         # render controls
         with ui.row().classes("w-full"):
             ui.space()
 
             # render cancel button
-            self._cancel_button_element = ui.button(text="Cancel", on_click=self.cancel, icon="close")
+            self.cancel_button_element = ui.button(text="Cancel", on_click=self.cancel, icon="close")
             self.cancel_button_element.props("outline")
             self.cancel_button_element.props("color=negative")
 
             # render submit and continue button
-            self._submit_and_continue_button_element = ui.button(text="Submit and Continue", on_click=self.submit, icon="check")
+            self.submit_and_continue_button_element = ui.button(text="Submit and Continue", on_click=self.submit, icon="check")
             self.submit_and_continue_button_element.props("outline")
             self.submit_and_continue_button_element.props("color=positive")
 
             # render submit button
-            self._submit_button_element = ui.button(text="Submit", on_click=self.submit, icon="check")
+            self.submit_button_element = ui.button(text="Submit", on_click=self.submit, icon="check")
             self.submit_button_element.props("color=positive")
+
+        return True
 
     async def submit(self, event):
         data = {}

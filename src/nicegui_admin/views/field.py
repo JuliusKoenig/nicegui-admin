@@ -1,5 +1,4 @@
-from abc import abstractmethod
-from typing import Callable, Optional, Any, TYPE_CHECKING
+from typing import Optional, Any, TYPE_CHECKING
 from types import MappingProxyType
 
 from fastapi.dependencies.utils import ModelField, analyze_param
@@ -8,6 +7,7 @@ from nicegui import ui
 from nicegui.events import UiEventArguments
 
 from nicegui_admin.layouts.base import BaseLayout
+from nicegui_admin.render_object import render_method
 from nicegui_admin.views.base import BaseView, BaseViewMeta
 from nicegui_admin.converter import Converter
 
@@ -44,6 +44,7 @@ class FieldViewMeta(BaseViewMeta):
 class FieldView(BaseView, metaclass=FieldViewMeta):
     # user defined
     field_margin: int
+    render_order: list[str] = ["fields"]
 
     # internal
     converter: Converter
@@ -111,12 +112,14 @@ class FieldView(BaseView, metaclass=FieldViewMeta):
             raise ValueError(f"Field {field} is already added")
         self._current_fields.append(field)
 
-    async def render_fields(self, field_mode: "FieldMode"):
+    @render_method("fields")
+    async def render_fields(self):
         # set loader text
         await self.layout.loader("log", "Rendering fields")
 
-        # set current field mode
-        self._current_field_mode = field_mode
+        # raise error if current fields is empty
+        if not self.current_fields:
+            raise ValueError("Current fields is empty")
 
         for i, field in enumerate(self.current_fields):
             # get field value
@@ -128,8 +131,8 @@ class FieldView(BaseView, metaclass=FieldViewMeta):
             #     await self.render_field_separator()
         # await self.render_field_separator()
 
-    async def render_field_separator(self) -> ui.separator:
-        return ui.separator().classes(f"mb-{self.field_margin}")
+    # async def render_field_separator(self) -> ui.separator:
+    #     return ui.separator().classes(f"mb-{self.field_margin}")
 
     async def on_change(self, field_name: str, value: Any, event: UiEventArguments):
         # copy current data

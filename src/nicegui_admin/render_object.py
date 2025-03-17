@@ -1,4 +1,5 @@
 import asyncio
+from abc import ABC, ABCMeta, abstractmethod
 from typing import Union, Any
 
 from nicegui import ui
@@ -7,11 +8,10 @@ from types import MappingProxyType
 from typing import Literal
 
 RENDER_METHOD_MODES = Literal["override", "prepend", "append"]
+RENDER_METHODS_BUILD: dict[str, list[tuple[str, RENDER_METHOD_MODES, bool]]] = {}
 
-RENDER_METHODS_BUILD: dict[str, list[tuple[str, RENDER_METHOD_MODES]]] = {}
 
-
-def render_method(*tags: str, mode: RENDER_METHOD_MODES = "append"):
+def render_method(*tags: str, mode: RENDER_METHOD_MODES = "append", top_level: bool = False):
     tags = list(tags)
 
     if len(tags) == 0:
@@ -23,18 +23,24 @@ def render_method(*tags: str, mode: RENDER_METHOD_MODES = "append"):
         for tag in tags:
             if tag not in RENDER_METHODS_BUILD:
                 RENDER_METHODS_BUILD[tag] = []
-            RENDER_METHODS_BUILD[tag].append((func.__name__, mode))
+            RENDER_METHODS_BUILD[tag].append((func.__name__, mode, top_level))
 
         return func
 
     return decorator
 
 
-class RenderObjectMeta(type):
+class RenderObjectMeta(ABCMeta):
     def __new__(mcs, name, bases, namespace, **kwargs):
+        # create cls
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
 
-        render_methods_build: dict[str, list[tuple[str, RENDER_METHOD_MODES]]] = {}
+        # check if cls is abstract
+        if ABC in bases:
+            cls._abstract = True
+            return cls
+
+        render_methods_build: dict[str, list[tuple[str, RENDER_METHOD_MODES, bool]]] = {}
 
         # add all from base classes
         for base in bases:
@@ -44,47 +50,47 @@ class RenderObjectMeta(type):
             for tag, build in getattr(base, "_render_methods_build", {}).items():
                 if tag not in render_methods_build:
                     render_methods_build[tag] = []
-                for method_name, mode in build:
+                for method_name, mode, top_level in build:
                     # pop method_name if exists
                     for i, (m, _) in enumerate(render_methods_build[tag]):
                         if m == method_name:
                             render_methods_build[tag].pop(i)
                             break
-                    render_methods_build[tag].append((method_name, mode))
+                    render_methods_build[tag].append((method_name, mode, top_level))
 
         # add all from global RENDER_METHODS_BUILD
         global RENDER_METHODS_BUILD
         for tag, build in RENDER_METHODS_BUILD.items():
             if tag not in render_methods_build:
                 render_methods_build[tag] = []
-            for method_name, mode in build:
+            for method_name, mode, top_level in build:
                 # pop method_name if exists
-                for i, (m, _) in enumerate(render_methods_build[tag]):
+                for i, (m, _, _) in enumerate(render_methods_build[tag]):
                     if m == method_name:
                         render_methods_build[tag].pop(i)
                         break
-                render_methods_build[tag].append((method_name, mode))
-
-        # empty global RENDER_METHODS_BUILD
-        RENDER_METHODS_BUILD = {}
+                render_methods_build[tag].append((method_name, mode, top_level))
 
         # set render method_name build list
         cls._render_methods_build = MappingProxyType(render_methods_build)
 
+        # empty global RENDER_METHODS_BUILD
+        RENDER_METHODS_BUILD = {}
+
         # build render list for each tag
-        render_methods: dict[str, list[callable]] = {}
+        render_methods: dict[str, list[tuple[callable, bool]]] = {}
         for tag, build in render_methods_build.items():
             render_methods[tag] = []
-            for method_name, mode in build:
+            for method_name, mode, top_level in build:
                 # get method
                 method = getattr(cls, method_name)
 
                 if mode == "override":
-                    render_methods[tag] = [method]
+                    render_methods[tag] = [(method, top_level)]
                 elif mode == "prepend":
-                    render_methods[tag].insert(0, method)
+                    render_methods[tag].insert(0, (method, top_level))
                 elif mode == "append":
-                    render_methods[tag].append(method)
+                    render_methods[tag].append((method, top_level))
                 else:
                     raise ValueError(f"Invalid mode: {mode}")
 
@@ -94,53 +100,28 @@ class RenderObjectMeta(type):
         return cls
 
 
-class RenderObject(metaclass=RenderObjectMeta):
+class RenderObject(ABC, metaclass=RenderObjectMeta):
+    # user defined variables
     render_order: list[str] = ["default"]
+
+    # internal variables
+    _abstract: bool
 
     def __init__(self):
         self._rendered_tags: list[str] = []
-        self._frame_element: Union[None, ui.element, Any] = None
-        self._elements: dict[str, Union[ui.element, Any]] = {}
+        self.frame_element: Union[None, ui.element, Any] = None
 
-    def __getattr__(self, item):
-        if not self.is_element(key=item):
-            return super().__getattribute__(item)
-        if item not in self._elements:
-            raise AttributeError(f"Element '{item}' not found")
-        return self._elements[item]
-
-    def __setattr__(self, key, value):
-        if not self.is_element(key=key, value=value):
-            return super().__setattr__(key, value)
-        if key in self._elements:
-            raise ValueError(f"Element '{key}' already exists")
-        self._elements[key] = value
-
-    @property
-    def frame_element(self) -> Union[ui.element, Any]:
-        if self._frame_element is None:
-            raise ValueError("Frame not rendered")
-        return self._frame_element
-
-    @classmethod
-    def is_element(cls, key: str, value: Any = None) -> bool:
-        if key.startswith("_"):
-            return False
-        if value is not None:
-            if not isinstance(value, ui.element):
-                return False
-        if not key.endswith("_element"):
-            return False
-        return True
-
-    async def render_frame(self) -> None:
-        self._frame_element = ui.element()
-        self.frame_element.classes("w-full h-full")
+    @abstractmethod
+    async def render_frame(self) -> Union[ui.element, Any]:
+        ...
 
     async def render(self, *tag: str, strict: bool = False, skip_rendered: bool = True) -> None:
         # render frame if not rendered
-        if self._frame_element is None:
-            await self.render_frame()
+        if self.frame_element is None:
+            frame_element = await self.render_frame()
+            if frame_element is None:
+                raise ValueError("Frame render method must return an element")
+            self.frame_element = frame_element
 
         # get render tags
         render_tags = list(tag or self._render_methods.keys())
@@ -160,13 +141,19 @@ class RenderObject(metaclass=RenderObjectMeta):
                 continue
 
             # render tag
-            for method in self._render_methods[tag]:
+            for method, top_level in self._render_methods[tag]:
                 if asyncio.iscoroutinefunction(method):
-                    with self.frame_element:
+                    if top_level:
                         await method(self)
+                    else:
+                        with self.frame_element:
+                            await method(self)
                 else:
-                    with self.frame_element:
+                    if top_level:
                         method(self)
+                    else:
+                        with self.frame_element:
+                            method(self)
 
             # add to rendered tags
             self._rendered_tags.append(tag)
