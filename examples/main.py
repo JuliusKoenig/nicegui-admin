@@ -1,40 +1,20 @@
-from nicegui import ui, app, APIRouter
+from nicegui import ui, app
 
-from pydantic import BaseModel as BaseModel, Field
-
-
-class CrudModel(BaseModel):
-    ...
-
-
-class CrudRouter(APIRouter):
-    def __init__(self,
-                 *,
-                 model: type[CrudModel],
-                 **kwargs):
-        super().__init__(**kwargs)
-
-        self.model: type[CrudModel] = model
-
-        self.page("/list")(self.crud_list)
-        self.page("/add")(self.crud_add)
-        self.page("/edit/{id:int}")(self.crud_edit)
-
-    async def crud_list(self):
-        c = ui.context.c
-        return ui.label("crud_list")
-
-    async def crud_add(self):
-        return ui.label("crud_list")
-
-    async def crud_edit(self):
-        return ui.label("crud_list")
+from niceguitools.crud.fields.text import TextField
+from niceguitools.crud.model import CrudModel
+from niceguitools.crud.field import Field
+from niceguitools.crud.router import CrudRouter
+from niceguitools.crud.views.list import ListView
 
 
 class MyModel(CrudModel):
-    username: str = Field(..., min_length=3, title="Benutzername", description="Der Benutzername für den Benutzer.")
-    password: str = Field(None, min_length=8, title="Passwort", description="Das Passwort für den Benutzer.")
-    test: str | None = None
+    implicit: str
+    explicit: str = Field(None, min_length=8, title="Explizites Feld",
+                          description="Ein explizites Feld mit Validierung", crud_field=TextField())
+    not_on_list: str = Field(None, min_length=8, title="Nicht in ListView",
+                             description="Ein Feld, das nicht in der ListView angezeigt wird", crud_field=TextField(hide=[ListView]))
+    only_pydantic: str = Field(None, min_length=8, title="Nur Pydantic",
+                               description="Ein Feld, das nur von Pydantic verarbeitet wird", crud_field=None)
 
 
 my_router = CrudRouter(model=MyModel)
@@ -46,5 +26,10 @@ async def index():
     return ui.label("Hello World!")
 
 
+@app.post("/test")
+async def test(attr: MyModel) -> MyModel:
+    return attr
+
+
 if __name__ in {"__main__", "__mp_main__"}:
-    ui.run(port=8000, show=False)
+    ui.run(port=8000, show=False, fastapi_docs=True)
