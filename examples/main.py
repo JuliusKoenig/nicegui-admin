@@ -30,7 +30,7 @@ test2_view = SqlModelCrudView(model=MyModel2)
 admin.add_view(test2_view)
 
 
-@admin.page("/")
+@test2_view.page("/")
 async def index() -> None:
     await test2_view.create({"asd": "".join(random.choices(string.ascii_letters + string.digits, k=10))})
     result = await test2_view.list()

@@ -24,6 +24,7 @@ sqlmodel = [
 [dependency-groups]
 dev = [
     "starlette-admin>=0.16.0",
+    "pywebview>=6.1",
 ]
 
 [build-system]

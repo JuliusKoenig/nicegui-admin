@@ -8,6 +8,8 @@ from typing import Any, TypeVar, Callable, Awaitable
 
 from nicegui.helpers import is_coroutine_function
 
+T = TypeVar("T")
+
 
 @dataclass
 class SearchTarget:
@@ -51,7 +53,7 @@ def get_from_stack(*search_targets: SearchTarget,
 
 class Unset:
     @classmethod
-    def resolve(cls, unset: Any, default: Any = None) -> Any:
+    def resolve(cls, unset: T, default: Any = None) -> T:
         return default if unset is cls else unset
 
 
@@ -62,9 +64,12 @@ def prettify_class_name(name: str) -> str:
 def slugify_class_name(name: str) -> str:
     return "".join(["-" + c.lower() if c.isupper() else c for c in name]).lstrip("-")
 
+
 WRAPPED_METHODS = []
 
-def wrapped_method(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[..., Awaitable[Any]]:
+
+def wrapped_method(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[
+    ..., Awaitable[Any]]:
     global WRAPPED_METHODS
     if func.__name__.startswith("before_"):
         raise ValueError("Method name cannot start with 'before_'!")
@@ -73,6 +78,7 @@ def wrapped_method(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> 
     if func.__name__ not in WRAPPED_METHODS:
         WRAPPED_METHODS.append(func.__name__)
     return func
+
 
 class WrappedMethodClassMeta(ABCMeta):
     def __new__(mcs, name, bases, namespace, **kwargs):
@@ -99,6 +105,7 @@ class WrappedMethodClassMeta(ABCMeta):
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
         return cls
 
+
 class WrappedMethodClass(metaclass=WrappedMethodClassMeta):
     def __getattribute__(self, item):
         if item not in super().__getattribute__("__wrapped_methods__"):
@@ -111,7 +118,8 @@ class WrappedMethodClass(metaclass=WrappedMethodClassMeta):
             async def wrapper(*args, **kwargs):
                 if hasattr(self, f"before_{item}"):
                     before = self.__getattribute__(f"before_{item}")
-                    args, kwargs = await before(*args, **kwargs) if inspect.iscoroutinefunction(before) else before(*args, **kwargs)
+                    args, kwargs = await before(*args, **kwargs) if inspect.iscoroutinefunction(before) else before(
+                        *args, **kwargs)
                 result = await method(*args, **kwargs)
                 if hasattr(self, f"after_{item}"):
                     after = self.__getattribute__(f"after_{item}")
@@ -128,6 +136,7 @@ class WrappedMethodClass(metaclass=WrappedMethodClassMeta):
                     result = after(result)
                 return result
         return wrapper
+
 
 # ToDo: check if needed
 def is_empty_file(file: Any) -> bool:
@@ -169,9 +178,6 @@ def get_file_icon(mime_type: str) -> str:
             if key in mime_type:
                 return mapping[key]
     return "fa-file"
-
-
-T = TypeVar("T")  # ToDo: check if needed
 
 
 # ToDo: check if needed
