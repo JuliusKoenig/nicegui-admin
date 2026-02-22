@@ -1,35 +1,46 @@
+import json
+import random
+import string
+
 from nicegui import ui, app
+from sqlmodel import Field, SQLModel
 
-from niceguitools.crud.fields.text import TextField
-from niceguitools.crud.model import CrudModel
-from niceguitools.crud.field import Field
-from niceguitools.crud.router import CrudRouter
-from niceguitools.crud.views.list import ListView
+from niceguitools.admin.contrib.sqlmodel.admin import SqlModelAdmin
+from niceguitools.admin.contrib.sqlmodel.view import SqlModelCrudView
 
-
-class MyModel(CrudModel):
-    implicit: str
-    explicit: str = Field(None, min_length=8, title="Explizites Feld",
-                          description="Ein explizites Feld mit Validierung", crud_field=TextField())
-    not_on_list: str = Field(None, min_length=8, title="Nicht in ListView",
-                             description="Ein Feld, das nicht in der ListView angezeigt wird", crud_field=TextField(hide=[ListView]))
-    only_pydantic: str = Field(None, min_length=8, title="Nur Pydantic",
-                               description="Ein Feld, das nur von Pydantic verarbeitet wird", crud_field=None)
+admin = SqlModelAdmin()
 
 
-my_router = CrudRouter(model=MyModel)
-app.include_router(my_router, prefix="/crud")
+class MyModel1(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    qwe: str = Field(index=True)
 
 
-@ui.page("/")
-async def index():
-    return ui.label("Hello World!")
+@admin.view(model=MyModel1)
+class MyView1(SqlModelCrudView):
+    ...
 
 
-@app.post("/test")
-async def test(attr: MyModel) -> MyModel:
-    return attr
+class MyModel2(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    asd: str = Field(index=True)
 
+
+test2_view = SqlModelCrudView(model=MyModel2)
+admin.add_view(test2_view)
+
+
+@admin.page("/")
+async def index() -> None:
+    await test2_view.create({"asd": "".join(random.choices(string.ascii_letters + string.digits, k=10))})
+    result = await test2_view.list()
+    for i, item in enumerate(result):
+        item_json = json.dumps(item, indent=4)
+        ui.label(f"Item {i}:\n{item_json}")
+
+
+app.include_router(admin)
 
 if __name__ in {"__main__", "__mp_main__"}:
+    SQLModel.metadata.create_all(admin.engine)
     ui.run(port=8000, show=False, fastapi_docs=True)

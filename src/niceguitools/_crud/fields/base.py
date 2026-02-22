@@ -5,8 +5,8 @@ from pydantic.fields import FieldInfo
 
 
 if TYPE_CHECKING:
-    from niceguitools.crud.views.base import BaseView
-    from niceguitools.crud.model import CrudModel
+    from niceguitools._crud.views.base import BaseView
+    from niceguitools._crud.model import CrudModel
 
 
 @dataclass

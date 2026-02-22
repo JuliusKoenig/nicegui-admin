@@ -4,12 +4,12 @@ from typing import Callable
 
 from nicegui import APIRouter
 
-from niceguitools.crud.model import CrudModel
-from niceguitools.crud.views.base import BaseView
-from niceguitools.crud.views.create import CreateView
-from niceguitools.crud.views.get import GetView
-from niceguitools.crud.views.list import ListView
-from niceguitools.crud.views.update import UpdateView
+from niceguitools._crud.model import CrudModel
+from niceguitools._crud.views.base import BaseView
+from niceguitools._crud.views.create import CreateView
+from niceguitools._crud.views.get import GetView
+from niceguitools._crud.views.list import ListView
+from niceguitools._crud.views.update import UpdateView
 
 logger = logging.getLogger(__name__)
 

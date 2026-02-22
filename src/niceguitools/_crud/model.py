@@ -5,8 +5,8 @@ from pydantic._internal._generics import PydanticGenericMetadata
 from pydantic._internal._model_construction import ModelMetaclass
 from pydantic.fields import FieldInfo
 
-from niceguitools.crud.fields.base import BaseField
-from niceguitools.crud.fields.text import TextField
+from niceguitools._crud.fields.base import BaseField
+from niceguitools._crud.fields.text import TextField
 
 
 class CrudModelMeta(ModelMetaclass):
@@ -83,3 +83,5 @@ class CrudModel(BaseModel, metaclass=CrudModelMeta):
                 continue
             return metadata
         return None
+
+

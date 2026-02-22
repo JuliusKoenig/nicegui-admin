@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING, Any
 
 from nicegui import ui
 
-from niceguitools.crud.fields.base import BaseField
-from niceguitools.crud.model import CrudModel
+from niceguitools._crud.fields.base import BaseField
+from niceguitools._crud.model import CrudModel
 
 if TYPE_CHECKING:
-    from niceguitools.crud.router import CrudRouter
+    from niceguitools._crud.router import CrudRouter
 
 
 class BaseView:

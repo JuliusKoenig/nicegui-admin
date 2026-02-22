@@ -9,7 +9,7 @@ from pydantic.fields import _Unset, FieldInfo, Deprecated, _EmptyKwargs
 from pydantic_core import PydanticUndefined
 from typing_extensions import Unpack
 
-from niceguitools.crud.fields.base import BaseField
+from niceguitools._crud.fields.base import BaseField
 
 
 # noinspection PyPep8Naming, PyOverloads
