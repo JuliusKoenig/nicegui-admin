@@ -121,7 +121,7 @@ class SubPageHandler:
 
         return {sub_page["path"]: {"builder": sub_page["builder"],
                                    "title": sub_page["title"],
-                                   "favicon": sub_page["favicon"]} for sub_page in self._sub_pages}
+                                   "icon": sub_page["icon"]} for sub_page in self._sub_pages}
 
     @property
     def sub_page_cls(self) -> type[SubPages]:
@@ -137,13 +137,13 @@ class SubPageHandler:
                  path: str,
                  *,
                  title: str | None = Unset,
-                 favicon: str | Path | None = None) -> Callable[..., Any] | Callable[..., Awaitable[Any]]:
+                 icon: str | Path | None = None) -> Callable[..., Any] | Callable[..., Awaitable[Any]]:
         """
         Decorator for adding a sub page to the sub page handler.
 
         :param path: Path of the sub page. Should be unique among all sub pages added to the sub page handler.
         :param title: Title of the sub page. If not provided, the title will be inferred from the builder function name.
-        :param favicon: Favicon of the sub page. Can be either a URL or a local file path. If not provided, no favicon will be set for the sub page.
+        :param icon: Icon of the sub page. Can be either a URL or a local file path. If not provided, no icon will be set for the sub page.
         :return: Decorator function that takes a builder function and adds it as a sub page to the sub page handler.
         """
 
@@ -152,24 +152,25 @@ class SubPageHandler:
             self.add_sub_page(path=path,
                               builder=builder,
                               title=title,
-                              favicon=favicon)
+                              icon=icon)
             return builder
 
         return decorator
 
+    # rename favicon to icon
     def add_sub_page(self,
                      path: str,
                      builder: Callable,
                      *,
                      title: str | None = Unset,
-                     favicon: str | Path | None = None) -> None:
+                     icon: str | Path | None = None) -> None:
         """
         Add a sub page to the sub page handler.
 
         :param path: Path of the sub page. Should be unique among all sub pages added to the sub page handler.
         :param builder: Builder function for the sub page. Can be either a regular function or an async function that builds the page content when called.
         :param title: Title of the sub page. If not provided, the title will be inferred from the builder function name.
-        :param favicon: Favicon of the sub page. Can be either a URL or a local file path. If not provided, no favicon will be set for the sub page.
+        :param icon: Icon of the sub page. Can be either a URL or a local file path. If not provided, no icon will be set for the sub page.
         :return: None
         """
 
@@ -193,7 +194,7 @@ class SubPageHandler:
         self._sub_pages.append({"path": path,
                                 "builder": wrapper,
                                 "title": title,
-                                "favicon": favicon})
+                                "icon": icon})
 
     def error_page(self,
                    title: str,

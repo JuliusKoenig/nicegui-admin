@@ -2,6 +2,7 @@ import json
 import random
 import string
 
+from docutils.nodes import title
 from nicegui import ui, app
 from sqlmodel import Field, SQLModel
 
@@ -10,15 +11,16 @@ from niceguitools.admin.contrib.sqlmodel.view import SqlModelCrudView
 
 
 class MyAdmin(SqlModelAdmin):
-    async def root_page(self):
-        with ui.header().classes("items-center bg-blue-100"):
-            ui.button("Home", on_click=lambda: ui.navigate.to("/")).props("flat")
-            ui.button("Test", on_click=lambda: ui.navigate.to(
-                f"/test?qwe={''.join(random.choices(string.ascii_letters + string.digits, k=10))}")).props("flat")
-            ui.button("Sync Error", on_click=lambda: ui.navigate.to("/sync_error")).props("flat")
-            ui.button("Async Error", on_click=lambda: ui.navigate.to("/async_error")).props("flat")
+    async def builder(self):
+        with (ui.header().classes("items-center bg-blue-100")):
+            for path, values in self.sub_pages.items():
+                button = ui.button(text=values["title"],
+                                   icon=values["icon"])
+                button.props("flat")
+                button.target = path
+                button.on_click(lambda e: ui.navigate.to(f"{e.sender.target}?qwe={''.join(random.choices(string.ascii_letters + string.digits, k=10))}"))
             ui.button("Invalid", on_click=lambda: ui.navigate.to("/invalid")).props("flat")
-        await super().root_page()
+        await super().builder()
 
 
 admin = MyAdmin()
@@ -64,7 +66,7 @@ async def async_error_page():
     raise RuntimeError("Asynchronous error")
 
 
-@test2_view.page("/")
+@test2_view.sub_page("/")
 async def index() -> None:
     await test2_view.create({"asd": "".join(random.choices(string.ascii_letters + string.digits, k=10))})
     result = await test2_view.list()
