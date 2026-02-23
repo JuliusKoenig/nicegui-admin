@@ -8,7 +8,20 @@ from sqlmodel import Field, SQLModel
 from niceguitools.admin.contrib.sqlmodel.admin import SqlModelAdmin
 from niceguitools.admin.contrib.sqlmodel.view import SqlModelCrudView
 
-admin = SqlModelAdmin()
+
+class MyAdmin(SqlModelAdmin):
+    async def root_page(self):
+        with ui.header().classes("items-center bg-blue-100"):
+            ui.button("Home", on_click=lambda: ui.navigate.to("/")).props("flat")
+            ui.button("Test", on_click=lambda: ui.navigate.to(
+                f"/test?qwe={''.join(random.choices(string.ascii_letters + string.digits, k=10))}")).props("flat")
+            ui.button("Sync Error", on_click=lambda: ui.navigate.to("/sync_error")).props("flat")
+            ui.button("Async Error", on_click=lambda: ui.navigate.to("/async_error")).props("flat")
+            ui.button("Invalid", on_click=lambda: ui.navigate.to("/invalid")).props("flat")
+        await super().root_page()
+
+
+admin = MyAdmin()
 
 
 class MyModel1(SQLModel, table=True):
@@ -28,6 +41,27 @@ class MyModel2(SQLModel, table=True):
 
 test2_view = SqlModelCrudView(model=MyModel2)
 admin.add_view(test2_view)
+
+
+@admin.sub_page("/")
+def home_page():
+    ui.label("Home")
+
+
+@admin.sub_page("/test")
+def test(qwe: str = None):
+    ui.label("Test")
+    ui.label(f"qwe: {qwe}")
+
+
+@admin.sub_page("/sync_error")
+def sync_error_page():
+    raise RuntimeError("Synchronous error")
+
+
+@admin.sub_page("/async_error", title="Async Error")
+async def async_error_page():
+    raise RuntimeError("Asynchronous error")
 
 
 @test2_view.page("/")

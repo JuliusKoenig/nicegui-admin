@@ -3,7 +3,7 @@ from typing import Union, TYPE_CHECKING, Callable
 from abc import abstractmethod
 from typing import Any, Sequence
 
-from niceguitools.admin.helper import Unset, slugify_class_name, prettify_class_name, WrappedMethodClass, wrapped_method
+from niceguitools.admin.helper import Unset, slugify_name, prettify_name, WrappedMethodClass, wrapped_method
 
 if TYPE_CHECKING:
     from niceguitools.admin.admin import BaseAdmin
@@ -27,10 +27,10 @@ class BaseView(WrappedMethodClass):
         :param icon: Icon to be displayed for this view.
         """
 
-        self._path: str = Unset.resolve(path, slugify_class_name(self.__class__.__name__))
+        self._path: str = Unset.resolve(path, slugify_name(self.__class__.__name__))
         if not self._path.startswith("/"):
             self._path = "/" + self._path
-        self._title: str = Unset.resolve(title, prettify_class_name(self.__class__.__name__))
+        self._title: str = Unset.resolve(title, prettify_name(self.__class__.__name__))
         self._icon = Unset.resolve(icon, None)
 
     def __str__(self) -> str:

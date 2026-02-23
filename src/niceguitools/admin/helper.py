@@ -1,5 +1,6 @@
 import os
 import re
+import string
 from abc import ABCMeta
 from dataclasses import dataclass, field
 import inspect
@@ -14,6 +15,7 @@ T = TypeVar("T")
 @dataclass
 class SearchTarget:
     name: str | None = field(default=None)
+    subtype: type = field(default=None)
     type: type = field(default=None)
 
     def __hash__(self) -> int:
@@ -26,7 +28,7 @@ def get_from_stack(*search_targets: SearchTarget,
                    _frame: FrameType | None = None) -> Any:
     if _frame is None:
         _frame = inspect.currentframe()
-    if context > 1 and _frame.f_back is not None:
+    if context > 0 and _frame.f_back is not None:
         return get_from_stack(*search_targets,
                               context=context - 1,
                               _frame=_frame.f_back)
@@ -37,6 +39,8 @@ def get_from_stack(*search_targets: SearchTarget,
                 continue
             for f_local in _frame.f_locals:
                 if search_target.name is not None and f_local != search_target.name:
+                    continue
+                if search_target.subtype is not None and not issubclass(type(_frame.f_locals[f_local]), search_target.subtype):
                     continue
                 if search_target.type is not None and type(_frame.f_locals[f_local]) != search_target.type:
                     continue
@@ -57,11 +61,19 @@ class Unset:
         return default if unset is cls else unset
 
 
-def prettify_class_name(name: str) -> str:
-    return re.sub(r"(?<=.)([A-Z])", r" \1", name)
+def prettify_name(name: str) -> str:
+    out = " "
+    for i, c in enumerate(name):
+        if c not in string.ascii_letters + string.digits and out[-1] != " ":
+            c = " "
+        if out[-1] == " ":
+            c = c.upper()
+        out += c
+    out = out.strip()
+    return out
 
 
-def slugify_class_name(name: str) -> str:
+def slugify_name(name: str) -> str:
     return "".join(["-" + c.lower() if c.isupper() else c for c in name]).lstrip("-")
 
 
