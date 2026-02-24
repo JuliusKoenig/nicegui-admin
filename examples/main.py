@@ -2,7 +2,6 @@ import json
 import random
 import string
 
-from docutils.nodes import title
 from nicegui import ui, app
 from sqlmodel import Field, SQLModel
 
