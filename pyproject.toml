@@ -1,29 +1,43 @@
 [project]
-name = "niceguitools"
+name = "nicegui-admin"
+dynamic = ["version"]
+description = "A admin Panel besed on NiceGUI."
 authors = [
-    { name = "Julius König", email = "info@bastelquartier.de" },
+    { name = "Julius Koenig", email = "info@bastelquartier.de" },
 ]
-description = "Tools for nicegui"
+dependencies = ["nicegui>=3.7.1"]
+requires-python = ">=3.10"
 readme = "README.md"
 keywords = ["nicegui", "gui", "tools", "niceguitools"]
-license = { text = "GPL-3" }
+license = { file = "LICENSE" }
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
-dependencies = [
-    "nicegui",
-    "pydantic",
+
+[project.optional-dependencies]
+sqlmodel = [
+    "sqlmodel>=0.0.37",
 ]
-version = "0.1.0"
-requires-python = ">=3.8"
+[dependency-groups]
+dev = [
+    "starlette-admin>=0.16.0",
+    "pywebview>=6.1",
+]
 
 [build-system]
 requires = ["pdm-backend"]
 build-backend = "pdm.backend"
 
-[tool.setuptools]
-zip-safe = false
-license-files = ["LICENSE"]
+[tool.pdm]
+distribution = true
+
+[tool.pdm.version]
+source = "file"
+path = "src/nicegui_admin/__init__.py"
+
+[tool.pdm.scripts]
+push-tags = { shell = "git push origin --tags" }
+
