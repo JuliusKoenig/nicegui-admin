@@ -6,8 +6,8 @@ from docutils.nodes import title
 from nicegui import ui, app
 from sqlmodel import Field, SQLModel
 
-from niceguitools.admin.contrib.sqlmodel.admin import SqlModelAdmin
-from niceguitools.admin.contrib.sqlmodel.view import SqlModelCrudView
+from nicegui_admin.contrib.sqlmodel.admin import SqlModelAdmin
+from nicegui_admin.contrib.sqlmodel.view import SqlModelCrudView
 
 
 class MyAdmin(SqlModelAdmin):

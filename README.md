@@ -1,11 +1,14 @@
 # nicegui-admin
 A admin panel for NiceGUI.
 
+_Very early stage of development, but you can already check out the code and give feedback._
 
+---
 ## Roadmap - DEV Stage
 - [x] Claim Repository & PyPI Package Name
 - [ ] CRUD operations
-- [ ] Docs page
+- [ ] Implement Testsystem and cover existing code
+- [ ] Create Docs page and complete README
 - [ ] Actions 
 - [ ] User Authentication, Authorization and Management
 - [ ] Role-Based Access Control (RBAC)
