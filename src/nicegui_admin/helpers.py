@@ -4,7 +4,7 @@ from abc import ABCMeta
 from dataclasses import dataclass, field
 import inspect
 from types import FrameType
-from typing import Any, TypeVar, Callable, Awaitable
+from typing import Any, TypeVar, Callable, Awaitable, Iterable
 
 from nicegui.helpers import is_coroutine_function
 
@@ -193,21 +193,79 @@ def get_file_icon(mime_type: str) -> str:
     return "fa-file"
 
 
-# ToDo: check if needed
 def not_none(value: T | None) -> T:
     """
     Safely retrieve a value that might be None and raise a ValueError if it is None.
 
-    Args:
-        value (Optional[T]): The value that might be None.
-
-    Returns:
-        T: The value if it is not None.
-
-    Raises:
-        ValueError: If the value is None.
+    :param value: The value that might be None.
+    :return: The value if it is not None.
+    :raises ValueError: If the value is None.
     """
 
     if value is not None:
         return value
-    raise ValueError("Value can not be None")  # pragma: no cover
+    raise ValueError("Value can not be None")
+
+
+CHAR_ESCAPE = "."
+CHAR_SEPARATOR = ","
+
+
+# ToDo: check if needed
+def escape(value: str) -> str:
+    """
+    Escape a string using custom escaping rules.
+
+    :param value: The string to escape.
+    :return: The escaped string.
+    """
+
+    return value.replace(CHAR_ESCAPE, CHAR_ESCAPE + CHAR_ESCAPE).replace(CHAR_SEPARATOR, CHAR_ESCAPE + CHAR_SEPARATOR)
+
+
+# ToDo: check if needed
+def iterencode(i: Iterable[str]) -> str:
+    """
+    Encode a sequence of strings into a single string. Each value in the sequence is escaped before being joined
+    with the separator character.
+
+    :param i: The sequence of strings to encode.
+    :return: The encoded string.
+    """
+
+    return CHAR_SEPARATOR.join(escape(value) for value in i)
+
+
+def iterdecode(value: str) -> tuple[str, ...]:
+    """
+    Decode an encoded string back to a tuple of string values.
+
+    :param value: The encoded string to decode.
+    :return: The decoded tuple of strings.
+    """
+
+    result = []
+    accumulator = ""
+
+    escaped = False
+
+    for char in value:
+        if not escaped:
+            if char == CHAR_ESCAPE:
+                escaped = True
+                continue
+            if char == CHAR_SEPARATOR:
+                result.append(accumulator)
+                accumulator = ""
+                continue
+        else:
+            escaped = False
+
+        accumulator += char
+
+    result.append(accumulator)
+
+    return tuple(result)
+
+
+
