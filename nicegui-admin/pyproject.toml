@@ -1,0 +1,22 @@
+[project]
+name = "nicegui-admin"
+version = "0.1.0"
+description = "A admin Panel besed on NiceGUI."
+authors = [
+    {name = "Julius Koenig", email = "info@bastelquartier.de"},
+]
+dependencies = [
+    "nicegui>=2.3.0",
+    "fastapi>=0.115.2",
+]
+requires-python = "<3.13,>=3.9"
+readme = "README.md"
+license = {text = "GPL-3.0"}
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+
+[tool.pdm]
+distribution = true
