@@ -7,6 +7,9 @@ _Very early stage of development, but you can already check out the code and giv
 ## Roadmap - DEV Stage
 - [x] Claim Repository & PyPI Package Name
 - [ ] CRUD operations
+  - support for sqlmodel
+  - support for sqlalchemy
+  - supporting async and sync database operations
 - [ ] Implement Testsystem and cover existing code
 - [ ] Create Docs page and complete README
 - [ ] Actions 

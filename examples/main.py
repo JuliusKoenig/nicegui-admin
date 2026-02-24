@@ -30,7 +30,7 @@ class MyModel1(SQLModel, table=True):
     qwe: str = Field(index=True)
 
 
-@admin.view(model=MyModel1)
+@admin.view(model=MyModel1, fields=["id", "qwe"])
 class MyView1(SqlModelCrudView):
     ...
 
@@ -40,7 +40,7 @@ class MyModel2(SQLModel, table=True):
     asd: str = Field(index=True)
 
 
-test2_view = SqlModelCrudView(model=MyModel2)
+test2_view = SqlModelCrudView(model=MyModel2, fields=["id", "asd"])
 admin.add_view(test2_view)
 
 

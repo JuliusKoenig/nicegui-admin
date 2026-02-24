@@ -5,7 +5,7 @@ from sqlalchemy import Engine
 from sqlmodel import create_engine, Session
 
 from nicegui_admin.admin import BaseAdmin
-from nicegui_admin.helper import Unset
+from nicegui_admin.helpers import Unset
 
 
 class SqlModelAdmin(BaseAdmin):
