@@ -10,7 +10,7 @@ from nicegui import ui, background_tasks
 from nicegui.helpers import is_coroutine_function
 from nicegui.page_arguments import RouteMatch, PageArguments
 
-from nicegui_admin.helper import Unset, prettify_name, get_from_stack, SearchTarget
+from nicegui_admin.helpers import Unset, prettify_name, get_from_stack, SearchTarget
 
 logger = logging.getLogger(__name__)
 
