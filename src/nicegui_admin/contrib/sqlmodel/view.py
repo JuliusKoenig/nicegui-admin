@@ -2,11 +2,11 @@ from typing import Any, Sequence, Union, TYPE_CHECKING
 
 from sqlmodel import SQLModel, select
 
-from niceguitools.admin.views import CrudView, WHERE, ORDER_BY
-from niceguitools.admin.helper import Unset
+from nicegui_admin.views import CrudView, WHERE, ORDER_BY
+from nicegui_admin.helper import Unset
 
 if TYPE_CHECKING:
-    from niceguitools.admin.contrib.sqlmodel.admin import SqlModelAdmin
+    from nicegui_admin.contrib.sqlmodel.admin import SqlModelAdmin
 
 
 class SqlModelCrudView(CrudView):

@@ -1,5 +1,4 @@
 import os
-import re
 import string
 from abc import ABCMeta
 from dataclasses import dataclass, field
@@ -40,7 +39,8 @@ def get_from_stack(*search_targets: SearchTarget,
             for f_local in _frame.f_locals:
                 if search_target.name is not None and f_local != search_target.name:
                     continue
-                if search_target.subtype is not None and not issubclass(type(_frame.f_locals[f_local]), search_target.subtype):
+                if search_target.subtype is not None and not issubclass(type(_frame.f_locals[f_local]),
+                                                                        search_target.subtype):
                     continue
                 if search_target.type is not None and type(_frame.f_locals[f_local]) != search_target.type:
                     continue
@@ -116,6 +116,7 @@ class WrappedMethodClassMeta(ABCMeta):
 
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
         return cls
+
 
 # ToDo: check if needed
 class WrappedMethodClass(metaclass=WrappedMethodClassMeta):

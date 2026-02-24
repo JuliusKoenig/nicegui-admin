@@ -1,7 +1,7 @@
 [project]
-name = "niceguitools"
+name = "nicegui-admin"
 dynamic = ["version"]
-description = "Tools for NiceGui."
+description = "A admin Panel besed on NiceGUI."
 authors = [
     { name = "Julius Koenig", email = "info@bastelquartier.de" },
 ]
@@ -36,7 +36,7 @@ distribution = true
 
 [tool.pdm.version]
 source = "file"
-path = "src/niceguitools/__init__.py"
+path = "src/nicegui_admin/__init__.py"
 
 [tool.pdm.scripts]
 push-tags = { shell = "git push origin --tags" }

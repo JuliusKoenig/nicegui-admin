@@ -1,13 +1,12 @@
-from pathlib import Path
-from typing import Union, TYPE_CHECKING, Callable
+from typing import Union, TYPE_CHECKING
 from abc import abstractmethod
 from typing import Any, Sequence
 
-from niceguitools.admin.helper import Unset, slugify_name, prettify_name, WrappedMethodClass, wrapped_method
-from niceguitools.admin.sub_page import SubPageHandler
+from nicegui_admin.helper import Unset, slugify_name, prettify_name, WrappedMethodClass, wrapped_method
+from nicegui_admin.sub_page import SubPageHandler
 
 if TYPE_CHECKING:
-    from niceguitools.admin.admin import BaseAdmin
+    from nicegui_admin.admin import BaseAdmin
 
 
 class BaseView(WrappedMethodClass, SubPageHandler):

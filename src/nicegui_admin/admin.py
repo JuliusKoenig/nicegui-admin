@@ -2,9 +2,9 @@ from typing import Callable
 
 from nicegui import APIRouter
 
-from niceguitools.admin.helper import Unset
-from niceguitools.admin.sub_page import SubPageHandler
-from niceguitools.admin.views import BaseView
+from nicegui_admin.helper import Unset
+from nicegui_admin.sub_page import SubPageHandler
+from nicegui_admin.views import BaseView
 
 
 class BaseAdmin(APIRouter, SubPageHandler):
