@@ -1,4 +1,4 @@
-from typing import Union, TYPE_CHECKING
+from typing import Union, TYPE_CHECKING, Literal
 from abc import abstractmethod
 from typing import Any, Sequence
 
@@ -54,6 +54,7 @@ class BaseView(WrappedMethodClass, SubPageHandler):
 # ToDo: implement Link
 # ToDo: implement CustomView
 
+CRUD_MODES = Literal["list", "get", "create", "edit"] | str
 WHERE = dict[str, Any] | None
 ORDER_BY = list[str] | None
 
