@@ -150,7 +150,7 @@ class SqlModelCrudView(BaseCrudView):
                 obj_dicts.append(obj.model_dump())
             return obj_dicts
 
-    def details_query(self) -> Select:
+    def detail_query(self) -> Select:
         """
         Return a Select expression which is used for details
 
@@ -159,8 +159,8 @@ class SqlModelCrudView(BaseCrudView):
 
         return select(self.model)
 
-    async def details(self,
-                      pk: Any) -> dict[str, Any] | None:
+    async def detail(self,
+                     pk: Any) -> dict[str, Any] | None:
         with self.admin.session() as session:
             if isinstance(self._pk_column, tuple):
                 """
@@ -182,7 +182,7 @@ class SqlModelCrudView(BaseCrudView):
             else:
                 assert isinstance(self._pk_coerce, type)
                 clause = self._pk_column == self._pk_coerce(pk)
-            statement = self.details_query().where(clause)
+            statement = self.detail_query().where(clause)
             # for field in self.get_fields_list(request, request.state.action): ToDo: check if needed
             #     if isinstance(field, RelationField):
             #         statement = statement.options(joinedload(getattr(self.model, field.name)))

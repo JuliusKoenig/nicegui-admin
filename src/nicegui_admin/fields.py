@@ -4,16 +4,23 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from nicegui_admin.helpers import Unset
+from nicegui_admin.helpers import Unset, DecoratedMethodClass, decorate
 
-FIELD_MODES = Literal["list", "get", "create", "edit"]
+FIELD_MODES = Literal["list", "detail", "create", "edit"]
 
 logger = logging.getLogger(__name__)
 _type = type
 
 
+def renderer(mode: FIELD_MODES):
+    return decorate(context="renderer",
+                    mode=mode)
+
+_renderer = renderer
+
+
 @dataclass
-class BaseField(ABC):
+class BaseField(DecoratedMethodClass):
     """
     Base class for fields
 
@@ -53,6 +60,13 @@ class BaseField(ABC):
         if self.cast_type is not None:
             Unset.resolve(self.serialization_cast_type, self.cast_type)
             Unset.resolve(self.deserialization_cast_type, self.cast_type)
+
+    @property
+    def renderer(self):
+        r = {}
+        for method_name, kwargs in self.__decorated_methods__.get("renderer", {}).items():
+            r[kwargs["mode"]] = getattr(self, method_name)
+        return r
 
     async def serialize_none(self) -> Any:
         """
@@ -122,6 +136,29 @@ class BaseField(ABC):
                     value = None
         data[self.key] = value
 
+    async def render(self, mode: FIELD_MODES) -> None:
+        print()
+
+    @_renderer(mode="list")
+    @abstractmethod
+    async def list(self):
+        ...
+
+    @_renderer(mode="detail")
+    @abstractmethod
+    async def detail(self):
+        ...
+
+    @_renderer(mode="create")
+    @abstractmethod
+    async def create(self):
+        ...
+
+    @_renderer(mode="edit")
+    @abstractmethod
+    async def edit(self):
+        ...
+
 
 @dataclass
 class BooleanField(BaseField):
@@ -130,6 +167,18 @@ class BooleanField(BaseField):
     """
 
     cast_type = bool
+
+    async def list(self):
+        raise NotImplementedError()
+
+    async def detail(self):
+        raise NotImplementedError()
+
+    async def create(self):
+        raise NotImplementedError()
+
+    async def edit(self):
+        raise NotImplementedError()
 
 
 @dataclass
@@ -158,6 +207,17 @@ class StringField(BaseField):
             return True
         return False
 
+    async def list(self):
+        raise NotImplementedError()
+
+    async def detail(self):
+        raise NotImplementedError()
+
+    async def create(self):
+        raise NotImplementedError()
+
+    async def edit(self):
+        raise NotImplementedError()
 
 # @dataclass
 # class TextAreaField(StringField):
@@ -273,6 +333,18 @@ class IntegerField(BaseNumberField):
     cast_type = int
     deserialization_mute_errors = ValueError, TypeError
 
+    async def list(self):
+        raise NotImplementedError()
+
+    async def detail(self):
+        raise NotImplementedError()
+
+    async def create(self):
+        raise NotImplementedError()
+
+    async def edit(self):
+        raise NotImplementedError()
+
 
 @dataclass
 class DecimalField(BaseNumberField):
@@ -285,6 +357,18 @@ class DecimalField(BaseNumberField):
     deserialization_cast_type = decimal.Decimal
     deserialization_mute_errors = decimal.InvalidOperation, ValueError
 
+    async def list(self):
+        raise NotImplementedError()
+
+    async def detail(self):
+        raise NotImplementedError()
+
+    async def create(self):
+        raise NotImplementedError()
+
+    async def edit(self):
+        raise NotImplementedError()
+
 
 @dataclass
 class FloatField(StringField):
@@ -295,6 +379,18 @@ class FloatField(StringField):
 
     cast_type = int
     deserialization_mute_errors = ValueError
+
+    async def list(self):
+        raise NotImplementedError()
+
+    async def detail(self):
+        raise NotImplementedError()
+
+    async def create(self):
+        raise NotImplementedError()
+
+    async def edit(self):
+        raise NotImplementedError()
 
 # @dataclass
 # class TagsField(BaseField):

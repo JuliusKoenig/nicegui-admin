@@ -77,11 +77,83 @@ def slugify_name(name: str) -> str:
     return "".join(["-" + c.lower() if c.isupper() else c for c in name]).lstrip("-")
 
 
+DECORATED_METHODS: dict[str, dict[str, dict[str, Any]]] = {}
+UNDECORATED_METHODS: dict[str, list[str]] = {}
+
+
+def decorate(context: str,
+             **kwargs):
+    def decorator(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[..., Awaitable[Any]]:
+        global DECORATED_METHODS
+        DECORATED_METHODS[context][func.__name__] = kwargs
+        return func
+
+    if context not in DECORATED_METHODS:
+        DECORATED_METHODS[context] = {}
+
+    return decorator
+
+
+def undecorate(context: str):
+    def decorator(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[..., Awaitable[Any]]:
+        global UNDECORATED_METHODS
+        if func.__name__ not in UNDECORATED_METHODS[context]:
+            UNDECORATED_METHODS[context].append(func.__name__)
+        return func
+
+    if context not in UNDECORATED_METHODS:
+        UNDECORATED_METHODS[context] = []
+
+    return decorator
+
+
+class DecoratedMethodClassMeta(ABCMeta):
+    def __new__(mcs, name, bases, namespace, **kwargs):
+        decorated_methods = {}
+
+        # get decorated methods from bases
+        for base in bases:
+            if hasattr(base, "__decorated_methods__"):
+                for context, methods in base.__decorated_methods__.items():
+                    if context not in decorated_methods:
+                        decorated_methods[context] = {}
+                    for method_name, method_kwargs in methods.items():
+                        decorated_methods[context][method_name] = method_kwargs
+
+        # get global DECORATED_METHODS
+        global DECORATED_METHODS
+        for context, methods in DECORATED_METHODS.items():
+            if context not in decorated_methods:
+                decorated_methods[context] = {}
+            for method_name, method_kwargs in methods.items():
+                decorated_methods[context][method_name] = method_kwargs
+        DECORATED_METHODS.clear()
+
+        # get global UNDECORATED_METHODS
+        global UNDECORATED_METHODS
+        for context, method_names in UNDECORATED_METHODS.items():
+            if context not in decorated_methods:
+                decorated_methods[context] = {}
+            for method_name in method_names:
+                if method_name in decorated_methods[context]:
+                    del decorated_methods[context][method_name]
+        UNDECORATED_METHODS.clear()
+
+        namespace["__decorated_methods__"] = decorated_methods
+
+        cls = super().__new__(mcs, name, bases, namespace, **kwargs)
+        return cls
+
+
+class DecoratedMethodClass(metaclass=DecoratedMethodClassMeta):
+    __decorated_methods__: dict[str, dict[str, Any]]
+
+
 WRAPPED_METHODS = []
 
 
-def wrapped_method(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[
-    ..., Awaitable[Any]]:
+# ToDo: check if needed
+def wrapped_method(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[..., Awaitable[Any]]:
     global WRAPPED_METHODS
     if func.__name__.startswith("before_"):
         raise ValueError("Method name cannot start with 'before_'!")
@@ -92,6 +164,7 @@ def wrapped_method(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> 
     return func
 
 
+# ToDo: check if needed
 class WrappedMethodClassMeta(ABCMeta):
     def __new__(mcs, name, bases, namespace, **kwargs):
         wrapped_methods = []
@@ -118,7 +191,7 @@ class WrappedMethodClassMeta(ABCMeta):
         return cls
 
 
-# ToDo: check if needed
+# ToDo: check if needed, if so use DecoratedMethodClassMeta instead of WrappedMethodClassMeta
 class WrappedMethodClass(metaclass=WrappedMethodClassMeta):
     def __getattribute__(self, item):
         if item not in super().__getattribute__("__wrapped_methods__"):
@@ -266,6 +339,3 @@ def iterdecode(value: str) -> tuple[str, ...]:
     result.append(accumulator)
 
     return tuple(result)
-
-
-

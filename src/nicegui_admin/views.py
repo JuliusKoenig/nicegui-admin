@@ -4,7 +4,7 @@ from abc import abstractmethod, ABC
 from typing import Any, Sequence
 
 from nicegui_admin.fields import BaseField
-from nicegui_admin.helpers import Unset, slugify_name, prettify_name, WrappedMethodClass, wrapped_method
+from nicegui_admin.helpers import Unset, slugify_name, prettify_name, WrappedMethodClass, wrapped_method, DecoratedMethodClass
 from nicegui_admin.sub_page import SubPageHandler
 
 if TYPE_CHECKING:
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class BaseView(ABC, SubPageHandler):
+class BaseView(DecoratedMethodClass, SubPageHandler):
     """
     Base class for all views.
 
@@ -74,8 +74,8 @@ class BaseCrudView(BaseView):
         raise NotImplementedError()
 
     @wrapped_method
-    async def details(self,
-                      pk: Any) -> dict[str, Any] | None:
+    async def detail(self,
+                     pk: Any) -> dict[str, Any] | None:
         result = await self.list(limit=1,
                                  where={"pk": pk})
         return result[0] if result else None
