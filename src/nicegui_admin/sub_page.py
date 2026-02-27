@@ -4,7 +4,7 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from nicegui import app, APIRouter
+from nicegui import APIRouter
 from nicegui import ui, background_tasks
 from nicegui.page_arguments import RouteMatch, PageArguments
 
@@ -18,6 +18,18 @@ def sub_page(path: str,
              *,
              title: str | None = Unset,
              icon: str | Path | None = None):
+    """
+    Decorator for adding a SubPage to the SubPage router.
+    Before instantiating the SubPage router, this decorator will not do anything.
+    It is possible to simple override the SubPage builder function in subclasses of the SubPage router without using this decorator again.
+    After the SubPage router is instantiated, this decorator will do nothing.
+
+    :param path: Path of the SubPage. Should be unique among all SubPages added to the SubPage router.
+    :param title: Title of the SubPage. If not provided, the title will be inferred from the builder function name.
+    :param icon: Icon of the SubPage. Can be either a URL or a local file path. If not provided, no icon will be set for the SubPage.
+    :return: Decorator function that takes a builder function and adds it as a SubPage to the SubPage router.
+    """
+
     return decorate("sub_page",
                     path=path,
                     title=title,
@@ -25,13 +37,28 @@ def sub_page(path: str,
 
 
 class SubPageRouter(DecoratedMethodClass):
+    """
+    Class for routing to different SubPages based on the URL path.
+    """
+
     class SubPages(ui.sub_pages):
+        """
+        Custom implementation of the SubPages component that supports both routing to builder functions and including other SubPageRouters as sub-pages.
+        The routes are dynamically generated based on the included SubPageRouters and the builder functions decorated with the @sub_page decorator.
+        """
+
         def __init__(self, sub_page_router: "SubPageRouter") -> None:
             self.sub_page_router: "SubPageRouter" = sub_page_router
             super().__init__(show_404=self.sub_page_router.show_404)
 
         @property
         def _routes(self) -> dict[str, SyncOrAsyncFunction]:
+            """
+            The routes for the SubPages component.
+
+            :return: The keys are the paths of the SubPages and the values are the builder functions that should be called when navigating to the corresponding path.
+            """
+
             routes = {}
             for router in self.sub_page_router.sub_page_router:
                 routes[router.prefix] = router.root
@@ -44,6 +71,12 @@ class SubPageRouter(DecoratedMethodClass):
 
         @property
         def _builder_attributes(self) -> dict[SyncOrAsyncFunction, dict[str, Any]]:
+            """
+            Builder attributes for the SubPages component.
+
+            :return: The keys are the builder functions and the values are dictionaries containing the attributes of the builders, such as title and icon.
+            """
+
             builder_attributes = {}
             for path, kwargs in self.sub_page_router.sub_pages.items():
                 builder_attributes[kwargs["builder"]] = kwargs
@@ -51,9 +84,22 @@ class SubPageRouter(DecoratedMethodClass):
 
         @_routes.setter
         def _routes(self, value: dict[str, Callable]) -> None:
+            """
+            Does nothing, as the routes are dynamically generated based on the included SubPageRouters
+            and the builder functions decorated with the @sub_page decorator.
+            """
+
             ...
 
         def _render_page(self, match: RouteMatch) -> bool:
+            """
+            Renders the page corresponding to the given route match.
+            If the route match corresponds to a builder function, the builder function is called to render the page content.
+
+            :param match: The route match for the page to be rendered. Contains information about the path and the builder function to be called.
+            :return: True if the page was rendered successfully, False otherwise.
+            """
+
             kwargs = PageArguments.build_kwargs(match, self, self._data)
             self._rendered_path = f'{self._root_path or ""}{match.path}'
             try:
@@ -63,8 +109,8 @@ class SubPageRouter(DecoratedMethodClass):
                     ui.page_title(title)
                 icon = builder_attributes.get("icon")
                 if icon is not None:
-                    # ToDo: support favicon for sub pages
-                    logger.warning(f"Favicon for sub pages is not yet supported. Ignoring icon '{icon}' for page '{match.path}'.")
+                    # ToDo: support favicon for SubPages
+                    logger.warning(f"Favicon for SubPages is not yet supported. Ignoring icon '{icon}' for page '{match.path}'.")
                 result = match.builder(**kwargs)
             except Exception as e:
                 self._render_error(e)
@@ -93,6 +139,12 @@ class SubPageRouter(DecoratedMethodClass):
             return True
 
         def _render_404(self) -> None:
+            """
+            Renders a 404 error page when the requested page is not found.
+
+            :return: None
+            """
+
             self.clear()
             self.sub_page_router.error_page(title=f"404 - Page Not Found",
                                             icon="search_off",
@@ -102,6 +154,14 @@ class SubPageRouter(DecoratedMethodClass):
                                             log=True)
 
         def _render_error(self, error: Exception) -> None:
+            """
+            Renders a 500 error page when an error occurs while rendering the requested page.
+
+            :param error: The exception that was raised while rendering the page.
+            The error message and stack trace will be displayed on the error page if the SubPageApp is in debug mode.
+            :return: None
+            """
+
             self.clear()
             self.sub_page_router.error_page(title="500 - Internal Server Error",
                                             icon="error_outline",
@@ -112,6 +172,11 @@ class SubPageRouter(DecoratedMethodClass):
                                             log=True)
 
         def _set_match(self, match: RouteMatch | None) -> None:
+            """
+            Overwritten to ensure that the 404 page is only shown when no route matches,
+            and not when a route matches but an error occurs while rendering the page.
+            """
+
             super()._set_match(match=match)
             self.has_404 = False
 
@@ -126,6 +191,13 @@ class SubPageRouter(DecoratedMethodClass):
 
     @property
     def sub_page_app(self) -> "SubPageApp":
+        """
+        The SubPageApp instance that this SubPageRouter is included in.
+
+        :return: The SubPageApp instance that this SubPageRouter is included in.
+        If the router is not included in any SubPageApp instance, a RuntimeError is raised.
+        """
+
         sub_page_app = self
         if self.parent_sub_page_router is not None:
             sub_page_app = self.parent_sub_page_router.sub_page_app
@@ -136,14 +208,31 @@ class SubPageRouter(DecoratedMethodClass):
 
     @property
     def parent_sub_page_router(self) -> Optional["SubPageRouter"]:
+        """
+        The parent SubPageRouter instance that this SubPageRouter is included in, or None if this SubPageRouter is not included in any other SubPageRouter.
+        :return: SubPageRouter or None
+        """
+
         return self._parent_sub_page_router
 
     @property
     def sub_page_router(self) -> tuple["SubPageRouter", ...]:
+        """
+        All SubPageRouter instances included in this SubPageRouter.
+
+        :return: Tuple of all SubPageRouter instances included in this SubPageRouter.
+        """
+
         return tuple(self._sub_page_router)
 
     @property
     def prefix(self) -> str:
+        """
+        The path prefix for this SubPageRouter. The prefix is used to determine the URL path for the SubPages included in this router.
+        If this SubPageRouter is included in another SubPageRouter, the prefix of the parent router is prepended to the prefix of this router.
+        :return: The path prefix for this SubPageRouter.
+        """
+
         if self.parent_sub_page_router is not None:
             return self.parent_sub_page_router.prefix + self._prefix
         return self._prefix
@@ -160,9 +249,9 @@ class SubPageRouter(DecoratedMethodClass):
     @property
     def sub_pages(self) -> dict[str, dict[str, Any]]:
         """
-        All sub pages added to the sub page handler.
-
-        :return: Tuple of all sub pages added to the sub page handler.
+        All SubPages added to this SubPageRouter using the @sub_page decorator or the add_sub_page method.
+        :return: A dictionary where the keys are the paths of the SubPages and the values
+         are dictionaries containing the builder function and attributes of the SubPages, such as title and icon.
         """
 
         sub_pages = {}
@@ -182,12 +271,13 @@ class SubPageRouter(DecoratedMethodClass):
                  title: str | None = Unset,
                  icon: str | Path | None = None) -> SyncOrAsyncFunction:
         """
-        Decorator for adding a sub page to the sub page handler.
+        Decorator for adding a SubPage to the SubPage router.
+        Use this decorator after instantiating the SubPage router to add builder functions for the SubPages.
 
-        :param path: Path of the sub page. Should be unique among all sub pages added to the sub page handler.
-        :param title: Title of the sub page. If not provided, the title will be inferred from the builder function name.
-        :param icon: Icon of the sub page. Can be either a URL or a local file path. If not provided, no icon will be set for the sub page.
-        :return: Decorator function that takes a builder function and adds it as a sub page to the sub page handler.
+        :param path: Path of the SubPage. Should be unique among all SubPages added to the SubPage router.
+        :param title: Title of the SubPage. If not provided, the title will be inferred from the builder function name.
+        :param icon: Icon of the SubPage. Can be either a URL or a local file path. If not provided, no icon will be set for the SubPage.
+        :return: Decorator function that takes a builder function and adds it as a SubPage to the SubPage router.
         """
 
         return self.__decorate__("sub_page",
@@ -203,12 +293,12 @@ class SubPageRouter(DecoratedMethodClass):
                      title: str | None = Unset,
                      icon: str | Path | None = None) -> None:
         """
-        Add a sub page to the sub page handler.
+        Add a SubPage to the SubPage router.
 
-        :param builder: Builder function for the sub page. Can be either a regular function or an async function that builds the page content when called.
-        :param path: Path of the sub page. Should be unique among all sub pages added to the sub page handler.
-        :param title: Title of the sub page. If not provided, the title will be inferred from the builder function name.
-        :param icon: Icon of the sub page. Can be either a URL or a local file path. If not provided, no icon will be set for the sub page.
+        :param builder: Builder function for the SubPage. Can be either a regular function or an async function that builds the page content when called.
+        :param path: Path of the SubPage. Should be unique among all SubPages added to the SubPage router.
+        :param title: Title of the SubPage. If not provided, the title will be inferred from the builder function name.
+        :param icon: Icon of the SubPage. Can be either a URL or a local file path. If not provided, no icon will be set for the SubPage.
         :return: None
         """
 
@@ -222,6 +312,17 @@ class SubPageRouter(DecoratedMethodClass):
                                 router: "SubPageRouter",
                                 *,
                                 prefix: str | Unset = Unset) -> None:
+        """
+        Include another SubPageRouter as a sub-page of this SubPageRouter. This allows for nesting of SubPageRouters and better organization of the page structure.
+        The included SubPageRouter will be accessible at the URL path determined by the prefix parameter.
+        If the prefix parameter is not provided, the prefix of the included SubPageRouter will be used as the path prefix for the included SubPageRouter.
+        The prefix of the included SubPageRouter is always relative to the prefix of this SubPage.
+
+        :param router: The SubPageRouter instance to be included as a sub-page of this SubPageRouter.
+        :param prefix: The path prefix for the included SubPageRouter. Should start with '/' and should not end with '/'.
+        :return: None
+        """
+
         if self is router:
             ValueError("Cannot include the same SupPageRouter instance into itself. "
                        "Did you mean to include a different router?")
@@ -234,10 +335,16 @@ class SubPageRouter(DecoratedMethodClass):
         self._sub_page_router.append(router)
         router._parent_sub_page_router = self
 
-    async def root(self):
+    async def root(self) -> None:
+        """
+        Root page for this SubPageRouter. This page will be rendered when navigating to the prefix path of this SubPageRouter.
+
+        :return: None
+        """
+
         ui.label("Router: " + self.__class__.__name__)
         ui.label("Prefix: " + self.prefix)
-        ui.label("Sub Pages:")
+        ui.label("SubPages:")
         for path, kwargs in self.sub_pages.items():
             ui.link(kwargs["title"], target=path)
         ui.label("Included SubPageRouters:")
@@ -254,6 +361,21 @@ class SubPageRouter(DecoratedMethodClass):
                    error: Exception | None = None,
                    buttons: bool = True,
                    log: bool = True) -> None:
+        """
+        Renders an error page with the given title, icon, color, and message.
+        If the SubPageApp is in debug mode and an error is provided, the stack trace of the error will also be displayed on the error page.
+
+        :param title: The title of the error page.
+        :param icon: The icon to be displayed on the error page. Can be either a URL or a local file path. If not provided, no icon will be displayed on the error page.
+         Note that favicon for error pages is not yet supported, so the icon will be ignored and a warning will be logged if an icon is provided.
+        :param color: The color to be used for the title and icon of the error page. Should be a valid Tailwind CSS color. If not provided, the default color "red" will be used.
+        :param message: An optional message to be displayed on the error page below the title. If not provided, no message will be displayed on the error page.
+        :param error: An optional exception that was raised while rendering the page. The SubPageApp must be in debug mode for the stack trace of the error to be displayed on the error page.
+        :param buttons: If True, "Go Home" and "Go Back" buttons will be displayed on the error page to allow for easy navigation. Defaults to True.
+        :param log: If True, the error message and stack trace (if available) will be logged using the logger. Defaults to True.
+        :return: None
+        """
+
         # ToDo: implement favicon for error pages
         if self.sub_page_app.debug:
             title = f"(Debug Mode) - {title}"
@@ -282,7 +404,7 @@ class SubPageRouter(DecoratedMethodClass):
                     else:
                         ui.label("None")
 
-                    ui.label("Sub Pages:")
+                    ui.label("SubPages:")
                     with ui.row():
                         for path, kwargs in self.sub_pages.items():
                             ui.link(kwargs["title"], target=path)
@@ -297,13 +419,18 @@ class SubPageRouter(DecoratedMethodClass):
                 log_msg += f"\n{stack_trace}"
             if buttons:
                 with ui.row().classes("mt-4"):
-                    ui.button("Go Home", icon="home", on_click=lambda: ui.navigate.to("/")).props("outline")
+                    ui.button("Go Home", icon="home", on_click=lambda: ui.navigate.to(self.sub_page_app.prefix)).props("outline")
                     ui.button("Go Back", icon="arrow_back", on_click=ui.navigate.back).props("outline")
         if log:
             logger.error(log_msg)
 
 
 class SubPageApp(APIRouter, SubPageRouter):
+    """
+    Main application class for the SubPage routing system.
+    This class should be instantiated and used to include SubPageRouters and define SubPages using the @sub_page decorator or the add_sub_page method.
+    """
+
     def __init__(self,
                  debug: bool = False,
                  prefix: str = "",
