@@ -1,18 +1,17 @@
 import decimal
 import logging
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any
 
 from nicegui_admin.helpers import Unset, DecoratedMethodClass, decorate
-
-FIELD_MODES = Literal["list", "detail", "create", "edit"]
+from nicegui_admin.types import FieldModes
 
 logger = logging.getLogger(__name__)
 _type = type
 
 
-def renderer(mode: FIELD_MODES):
+def renderer(mode: FieldModes):
     return decorate(context="renderer",
                     mode=mode)
 
@@ -45,9 +44,9 @@ class BaseField(DecoratedMethodClass):
     required: bool = field(default=False)
     searchable: bool = field(default=True)
     orderable: bool = field(default=True)
-    disabled: bool | list[FIELD_MODES] = field(default=False)
-    read_only: bool | list[FIELD_MODES] = field(default=False)
-    exclude: bool | list[FIELD_MODES] = field(default=False)
+    disabled: bool | list[FieldModes] = field(default=False)
+    read_only: bool | list[FieldModes] = field(default=False)
+    exclude: bool | list[FieldModes] = field(default=False)
     cast_type: _type | None = field(default=None)
     serialization_cast_type: _type | Unset | None = field(default=Unset)
     serialization_mute_errors: Exception | tuple[Exception] = field(default_factory=tuple)
@@ -136,7 +135,7 @@ class BaseField(DecoratedMethodClass):
                     value = None
         data[self.key] = value
 
-    async def render(self, mode: FIELD_MODES) -> None:
+    async def render(self, mode: FieldModes) -> None:
         print()
 
     @_renderer(mode="list")
