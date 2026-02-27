@@ -44,28 +44,28 @@ test2_view = SqlModelCrudView(model=MyModel2, fields=["id", "asd"])
 admin.add_view(test2_view)
 
 
-@admin.subpage("/")
+@admin.sub_page("/")
 def home_page():
     ui.label("Home")
 
 
-@admin.subpage("/test")
+@admin.sub_page("/test")
 def test(qwe: str = None):
     ui.label("Test")
     ui.label(f"qwe: {qwe}")
 
 
-@admin.subpage("/sync_error")
+@admin.sub_page("/sync_error")
 def sync_error_page():
     raise RuntimeError("Synchronous error")
 
 
-@admin.subpage("/async_error", title="Async Error")
+@admin.sub_page("/async_error", title="Async Error")
 async def async_error_page():
     raise RuntimeError("Asynchronous error")
 
 
-@test2_view.subpage("/")
+@test2_view.sub_page("/")
 async def index() -> None:
     await test2_view.create({"asd": "".join(random.choices(string.ascii_letters + string.digits, k=10))})
     result = await test2_view.list()

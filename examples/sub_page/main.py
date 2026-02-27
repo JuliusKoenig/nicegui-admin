@@ -1,11 +1,11 @@
 from nicegui import app
 from nicegui import ui
 
-from nicegui_admin.sub_page import SubPageApp, subpage, SubPageRouter
+from nicegui_admin.sub_page import SubPageApp, sub_page, SubPageRouter
 
 
 class MyApp(SubPageApp):
-    @subpage(path="/class_page_app")
+    @sub_page(path="/class_page_app")
     def class_page_app(self):
         ui.label("This is the 'class_page_app' sub page")
 
@@ -13,13 +13,13 @@ class MyApp(SubPageApp):
 my_app = MyApp(debug=True, prefix="/admin")
 
 
-@my_app.subpage("/page_app")
+@my_app.sub_page("/page_app")
 def page_app():
     ui.label("This is the 'page_app' sub page")
 
 
 class MyRouter(SubPageRouter):
-    @subpage(path="/class_page_router")
+    @sub_page(path="/class_page_router")
     def class_page_router(self):
         ui.label("This is the 'class_page_router' sub page")
 
@@ -27,12 +27,12 @@ class MyRouter(SubPageRouter):
 my_router = MyRouter(prefix="/my_router")
 
 
-@my_router.subpage("/page_router")
+@my_router.sub_page("/page_router")
 def page_router():
     ui.label("This is the 'page_router' sub page")
 
 
-my_app.include_subpage_router(my_router)
+my_app.include_sub_page_router(my_router)
 
 app.include_router(my_app)
 

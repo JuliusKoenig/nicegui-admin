@@ -14,11 +14,11 @@ from nicegui_admin.types import SyncOrAsyncFunction
 logger = logging.getLogger(__name__)
 
 
-def subpage(path: str,
-            *,
-            title: str | None = Unset,
-            icon: str | Path | None = None):
-    return decorate("subpage",
+def sub_page(path: str,
+             *,
+             title: str | None = Unset,
+             icon: str | Path | None = None):
+    return decorate("sub_page",
                     path=path,
                     title=title,
                     icon=icon)
@@ -26,16 +26,16 @@ def subpage(path: str,
 
 class SubPageRouter(DecoratedMethodClass):
     class SubPages(ui.sub_pages):
-        def __init__(self, subpage_router: "SubPageRouter") -> None:
-            self.subpage_router: "SubPageRouter" = subpage_router
-            super().__init__(show_404=self.subpage_router.show_404)
+        def __init__(self, sub_page_router: "SubPageRouter") -> None:
+            self.sub_page_router: "SubPageRouter" = sub_page_router
+            super().__init__(show_404=self.sub_page_router.show_404)
 
         @property
         def _routes(self) -> dict[str, SyncOrAsyncFunction]:
             routes = {}
-            for router in self.subpage_router.subpage_router:
+            for router in self.sub_page_router.sub_page_router:
                 routes[router.prefix] = router.root
-            for path, kwargs in self.subpage_router.subpages.items():
+            for path, kwargs in self.sub_page_router.sub_pages.items():
                 if self._root_path is not None:
                     path = path[len(self._root_path):] if path.startswith(self._root_path) else path
                 builder: SyncOrAsyncFunction = kwargs["builder"]
@@ -45,7 +45,7 @@ class SubPageRouter(DecoratedMethodClass):
         @property
         def _builder_attributes(self) -> dict[SyncOrAsyncFunction, dict[str, Any]]:
             builder_attributes = {}
-            for path, kwargs in self.subpage_router.subpages.items():
+            for path, kwargs in self.sub_page_router.sub_pages.items():
                 builder_attributes[kwargs["builder"]] = kwargs
             return builder_attributes
 
@@ -94,22 +94,22 @@ class SubPageRouter(DecoratedMethodClass):
 
         def _render_404(self) -> None:
             self.clear()
-            self.subpage_router.error_page(title=f"404 - Page Not Found",
-                                           icon="search_off",
-                                           color="red",
-                                           message=f"The page '{self._router.current_path}' does not exist.",
-                                           buttons=True,
-                                           log=True)
+            self.sub_page_router.error_page(title=f"404 - Page Not Found",
+                                            icon="search_off",
+                                            color="red",
+                                            message=f"The page '{self._router.current_path}' does not exist.",
+                                            buttons=True,
+                                            log=True)
 
         def _render_error(self, error: Exception) -> None:
             self.clear()
-            self.subpage_router.error_page(title="500 - Internal Server Error",
-                                           icon="error_outline",
-                                           color="red",
-                                           message=f"The page '{self._router.current_path}' produced an error.",
-                                           error=error,
-                                           buttons=True,
-                                           log=True)
+            self.sub_page_router.error_page(title="500 - Internal Server Error",
+                                            icon="error_outline",
+                                            color="red",
+                                            message=f"The page '{self._router.current_path}' produced an error.",
+                                            error=error,
+                                            buttons=True,
+                                            log=True)
 
         def _set_match(self, match: RouteMatch | None) -> None:
             super()._set_match(match=match)
@@ -118,8 +118,8 @@ class SubPageRouter(DecoratedMethodClass):
     def __init__(self,
                  prefix: str = "",
                  show_404: bool = True) -> None:
-        self._parent_router: Optional[SubPageRouter] = None
-        self._subpage_router: list[SubPageRouter] = []
+        self._parent_sub_page_router: Optional[SubPageRouter] = None
+        self._sub_page_router: list[SubPageRouter] = []
         self._prefix = prefix
         self.prefix = prefix  # validate prefix
         self.show_404: bool = show_404
@@ -127,25 +127,25 @@ class SubPageRouter(DecoratedMethodClass):
     @property
     def sub_page_app(self) -> "SubPageApp":
         sub_page_app = self
-        if self.parent_router is not None:
-            sub_page_app = self.parent_router.sub_page_app
+        if self.parent_sub_page_router is not None:
+            sub_page_app = self.parent_sub_page_router.sub_page_app
         if not isinstance(sub_page_app, SubPageApp):
             raise RuntimeError("The router is not included in a SubPageApp instance. "
-                               "Please include the router in a SubPageApp instance using the 'include_subpage_router' method.")
+                               "Please include the router in a SubPageApp instance using the 'include_sub_page_router' method.")
         return sub_page_app
 
     @property
-    def parent_router(self) -> Optional["SubPageRouter"]:
-        return self._parent_router
+    def parent_sub_page_router(self) -> Optional["SubPageRouter"]:
+        return self._parent_sub_page_router
 
     @property
-    def subpage_router(self) -> tuple["SubPageRouter", ...]:
-        return tuple(self._subpage_router)
+    def sub_page_router(self) -> tuple["SubPageRouter", ...]:
+        return tuple(self._sub_page_router)
 
     @property
     def prefix(self) -> str:
-        if self.parent_router is not None:
-            return self.parent_router.prefix + self._prefix
+        if self.parent_sub_page_router is not None:
+            return self.parent_sub_page_router.prefix + self._prefix
         return self._prefix
 
     @prefix.setter
@@ -158,29 +158,29 @@ class SubPageRouter(DecoratedMethodClass):
         self._prefix = value
 
     @property
-    def subpages(self) -> dict[str, dict[str, Any]]:
+    def sub_pages(self) -> dict[str, dict[str, Any]]:
         """
         All sub pages added to the sub page handler.
 
         :return: Tuple of all sub pages added to the sub page handler.
         """
 
-        subpages = {}
-        for builder, kwargs in self.__decorated_methods__.get("subpage", {}).items():
+        sub_pages = {}
+        for builder, kwargs in self.__decorated_methods__.get("sub_page", {}).items():
             path = self.prefix + kwargs["path"]
             title = Unset.resolve(kwargs["title"], prettify_name(builder.__name__))
             icon = kwargs["icon"]
-            subpages[path] = {"builder": builder,
+            sub_pages[path] = {"builder": builder,
                               "title": title,
                               "icon": icon}
 
-        return subpages
+        return sub_pages
 
-    def subpage(self,
-                path: str,
-                *,
-                title: str | None = Unset,
-                icon: str | Path | None = None) -> SyncOrAsyncFunction:
+    def sub_page(self,
+                 path: str,
+                 *,
+                 title: str | None = Unset,
+                 icon: str | Path | None = None) -> SyncOrAsyncFunction:
         """
         Decorator for adding a sub page to the sub page handler.
 
@@ -190,18 +190,18 @@ class SubPageRouter(DecoratedMethodClass):
         :return: Decorator function that takes a builder function and adds it as a sub page to the sub page handler.
         """
 
-        return self.__decorate__("subpage",
+        return self.__decorate__("sub_page",
                                  path=path,
                                  title=title,
                                  icon=icon)
 
     # rename favicon to icon
-    def add_subpage(self,
-                    builder: SyncOrAsyncFunction,
-                    path: str,
-                    *,
-                    title: str | None = Unset,
-                    icon: str | Path | None = None) -> None:
+    def add_sub_page(self,
+                     builder: SyncOrAsyncFunction,
+                     path: str,
+                     *,
+                     title: str | None = Unset,
+                     icon: str | Path | None = None) -> None:
         """
         Add a sub page to the sub page handler.
 
@@ -213,35 +213,35 @@ class SubPageRouter(DecoratedMethodClass):
         """
 
         self.__add_decoration__(builder,
-                                "subpage",
+                                "sub_page",
                                 path=path,
                                 title=title,
                                 icon=icon)
 
-    def include_subpage_router(self,
-                               router: "SubPageRouter",
-                               *,
-                               prefix: str | Unset = Unset) -> None:
+    def include_sub_page_router(self,
+                                router: "SubPageRouter",
+                                *,
+                                prefix: str | Unset = Unset) -> None:
         if self is router:
             ValueError("Cannot include the same SupPageRouter instance into itself. "
                        "Did you mean to include a different router?")
-        if router in self._subpage_router:
+        if router in self._sub_page_router:
             ValueError("Cannot include SubPageRouter instance that is already included in this router.")
-        if router.parent_router is not None:
+        if router.parent_sub_page_router is not None:
             ValueError("Cannot include SubPageRouter instance that is already included in another router.")
         if prefix is not Unset:
             router.prefix = prefix
-        self._subpage_router.append(router)
-        router._parent_router = self
+        self._sub_page_router.append(router)
+        router._parent_sub_page_router = self
 
     async def root(self):
         ui.label("Router: " + self.__class__.__name__)
         ui.label("Prefix: " + self.prefix)
         ui.label("Sub Pages:")
-        for path, kwargs in self.subpages.items():
+        for path, kwargs in self.sub_pages.items():
             ui.link(kwargs["title"], target=path)
         ui.label("Included SubPageRouters:")
-        for router in self.subpage_router:
+        for router in self.sub_page_router:
             ui.link(router.__class__.__name__, target=router.prefix)
 
         self.SubPages(self)
@@ -271,30 +271,30 @@ class SubPageRouter(DecoratedMethodClass):
             if message is not None:
                 ui.label(message).classes("text-gray-600")
                 log_msg += f" -> {message}"
-            if error is not None and self.sub_page_app.debug:
-                stack_trace = traceback.format_exc()
-                ui.code(stack_trace)
-                log_msg += f"\n{stack_trace}"
             if self.sub_page_app.debug:
                 with ui.grid(columns=2):
                     ui.label("Router:")
                     ui.link(self.__class__.__name__, target=self.prefix)
 
                     ui.label("Parent Router:")
-                    if self.parent_router is not None:
-                        ui.link(self.parent_router.__class__.__name__, target=self.parent_router.prefix)
+                    if self.parent_sub_page_router is not None:
+                        ui.link(self.parent_sub_page_router.__class__.__name__, target=self.parent_sub_page_router.prefix)
                     else:
                         ui.label("None")
 
                     ui.label("Sub Pages:")
                     with ui.row():
-                        for path, kwargs in self.subpages.items():
+                        for path, kwargs in self.sub_pages.items():
                             ui.link(kwargs["title"], target=path)
 
                     ui.label("Included SubPageRouters:")
                     with ui.row():
-                        for router in self.subpage_router:
+                        for router in self.sub_page_router:
                             ui.link(router.__class__.__name__, target=router.prefix)
+            if error is not None and self.sub_page_app.debug:
+                stack_trace = traceback.format_exc()
+                ui.code(stack_trace)
+                log_msg += f"\n{stack_trace}"
             if buttons:
                 with ui.row().classes("mt-4"):
                     ui.button("Go Home", icon="home", on_click=lambda: ui.navigate.to("/")).props("outline")

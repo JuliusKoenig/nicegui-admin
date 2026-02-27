@@ -69,5 +69,5 @@ class BaseAdmin(SubPageApp):
             raise ValueError(f"View '{view_instance}' is already assigned to an admin.")
         setattr(view, "_admin", self)
         self._views.append(view_instance)
-        self.include_subpage_router(view_instance,
-                                    prefix=view_instance.path)
+        self.include_sub_page_router(view_instance,
+                                     prefix=view_instance.path)
