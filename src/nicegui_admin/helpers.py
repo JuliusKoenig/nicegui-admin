@@ -132,8 +132,8 @@ class DecoratedMethodClassMeta(ABCMeta):
         # get global UNDECORATED_METHODS
         global UNDECORATED_METHODS
         for context, method_names in UNDECORATED_METHODS.items():
-            if context not in decorated_methods:
-                decorated_methods[context] = {}
+            if context in decorated_methods:
+                continue
             for method_name in method_names:
                 if method_name in decorated_methods[context]:
                     del decorated_methods[context][method_name]
@@ -147,6 +147,26 @@ class DecoratedMethodClassMeta(ABCMeta):
 
 class DecoratedMethodClass(metaclass=DecoratedMethodClassMeta):
     __decorated_methods__: dict[str, dict[str, Any]]
+
+    def __decorate__(self, context: str,
+                     **kwargs):
+        def decorator(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[..., Awaitable[Any]]:
+            self.__decorated_methods__[context][func.__name__] = kwargs
+            return func
+
+        if context not in DECORATED_METHODS:
+            self.__decorated_methods__[context] = {}
+
+        return decorator
+
+    def __undecorate__(self, context: str):
+        def decorator(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[..., Awaitable[Any]]:
+            if context in self.__decorated_methods__:
+                if func.__name__ in self.__decorated_methods__[context]:
+                    del self.__decorated_methods__[context][func.__name__]
+            return func
+
+        return decorator
 
 
 WRAPPED_METHODS = []

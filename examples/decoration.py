@@ -1,4 +1,4 @@
-from nicegui_admin.helpers import DecoratedMethodClass, decorate, undecorate
+from nicegui_admin.helpers import decorate, undecorate, DecoratedMethodClass
 
 
 def test_decorator(qwe: str, asd: int):
