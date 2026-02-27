@@ -5,14 +5,14 @@ from typing import Any, Sequence
 
 from nicegui_admin.fields import BaseField
 from nicegui_admin.helpers import Unset, slugify_name, prettify_name, WrappedMethodClass, wrapped_method, DecoratedMethodClass
-from nicegui_admin.sub_page import SubPageHandler
+from nicegui_admin.sub_page import SubPageRouter
 
 if TYPE_CHECKING:
     from nicegui_admin.admin import BaseAdmin
 
 
 @dataclass
-class BaseView(DecoratedMethodClass, SubPageHandler):
+class BaseView(SubPageRouter):
     """
     Base class for all views.
 
@@ -26,7 +26,7 @@ class BaseView(DecoratedMethodClass, SubPageHandler):
     icon: str | Unset | None = field(default=Unset, repr=False)
 
     def __post_init__(self):
-        SubPageHandler.__init__(self)
+        SubPageRouter.__init__(self)
         self.path: str = Unset.resolve(self.path, slugify_name(self.__class__.__name__))
         if not self.path.startswith("/"):
             self.path = "/" + self.path
@@ -36,9 +36,6 @@ class BaseView(DecoratedMethodClass, SubPageHandler):
     @property
     def admin(self) -> Union["BaseAdmin", Any, None]:
         return getattr(self, "_admin", None)
-
-    async def builder(self):
-        self.sub_page_cls()
 
 
 # ToDo: implement DropDown

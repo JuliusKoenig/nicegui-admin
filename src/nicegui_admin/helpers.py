@@ -4,9 +4,11 @@ from abc import ABCMeta
 from dataclasses import dataclass, field
 import inspect
 from types import FrameType
-from typing import Any, TypeVar, Callable, Awaitable, Iterable
+from typing import Any, TypeVar, Iterable
 
 from nicegui.helpers import is_coroutine_function
+
+from nicegui_admin.types import SyncOrAsyncFunction
 
 T = TypeVar("T")
 
@@ -78,33 +80,23 @@ def slugify_name(name: str) -> str:
 
 
 DECORATED_METHODS: dict[str, dict[str, dict[str, Any]]] = {}
-UNDECORATED_METHODS: dict[str, list[str]] = {}
 
 
 def decorate(context: str,
              **kwargs):
-    def decorator(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[..., Awaitable[Any]]:
-        global DECORATED_METHODS
-        DECORATED_METHODS[context][func.__name__] = kwargs
+    def decorator(func: SyncOrAsyncFunction) -> SyncOrAsyncFunction:
+        add_decorate(func, context, **kwargs)
         return func
+
+    return decorator
+
+
+def add_decorate(func: SyncOrAsyncFunction, context: str, **kwargs) -> None:
+    global DECORATED_METHODS
 
     if context not in DECORATED_METHODS:
         DECORATED_METHODS[context] = {}
-
-    return decorator
-
-
-def undecorate(context: str):
-    def decorator(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[..., Awaitable[Any]]:
-        global UNDECORATED_METHODS
-        if func.__name__ not in UNDECORATED_METHODS[context]:
-            UNDECORATED_METHODS[context].append(func.__name__)
-        return func
-
-    if context not in UNDECORATED_METHODS:
-        UNDECORATED_METHODS[context] = []
-
-    return decorator
+    DECORATED_METHODS[context][func.__name__] = kwargs
 
 
 class DecoratedMethodClassMeta(ABCMeta):
@@ -113,8 +105,8 @@ class DecoratedMethodClassMeta(ABCMeta):
 
         # get decorated methods from bases
         for base in bases:
-            if hasattr(base, "__decorated_methods__"):
-                for context, methods in base.__decorated_methods__.items():
+            if hasattr(base, "___decorated_methods___"):
+                for context, methods in base.___decorated_methods___.items():
                     if context not in decorated_methods:
                         decorated_methods[context] = {}
                     for method_name, method_kwargs in methods.items():
@@ -129,51 +121,50 @@ class DecoratedMethodClassMeta(ABCMeta):
                 decorated_methods[context][method_name] = method_kwargs
         DECORATED_METHODS.clear()
 
-        # get global UNDECORATED_METHODS
-        global UNDECORATED_METHODS
-        for context, method_names in UNDECORATED_METHODS.items():
-            if context in decorated_methods:
-                continue
-            for method_name in method_names:
-                if method_name in decorated_methods[context]:
-                    del decorated_methods[context][method_name]
-        UNDECORATED_METHODS.clear()
-
-        namespace["__decorated_methods__"] = decorated_methods
+        namespace["___decorated_methods___"] = decorated_methods
 
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
         return cls
 
 
 class DecoratedMethodClass(metaclass=DecoratedMethodClassMeta):
-    __decorated_methods__: dict[str, dict[str, Any]]
+    ___decorated_methods___: dict[str, dict[str | SyncOrAsyncFunction, Any]]
 
-    def __decorate__(self, context: str,
+    @property
+    def __decorated_methods__(self) -> dict[str, dict[SyncOrAsyncFunction, Any]]:
+        decorated_methods = {}
+        for context, methods in self.___decorated_methods___.items():
+            decorated_methods[context] = {}
+            for method_or_method_name, method_kwargs in methods.items():
+                if isinstance(method_or_method_name, str):
+                    method = getattr(self, method_or_method_name)
+                else:
+                    method = method_or_method_name
+                decorated_methods[context][method] = method_kwargs
+        return decorated_methods
+
+    def __decorate__(self,
+                     context: str,
                      **kwargs):
-        def decorator(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[..., Awaitable[Any]]:
-            self.__decorated_methods__[context][func.__name__] = kwargs
-            return func
-
-        if context not in DECORATED_METHODS:
-            self.__decorated_methods__[context] = {}
-
-        return decorator
-
-    def __undecorate__(self, context: str):
-        def decorator(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[..., Awaitable[Any]]:
-            if context in self.__decorated_methods__:
-                if func.__name__ in self.__decorated_methods__[context]:
-                    del self.__decorated_methods__[context][func.__name__]
+        def decorator(func: SyncOrAsyncFunction) -> SyncOrAsyncFunction:
+            self.__add_decoration__(func,
+                                    context,
+                                    **kwargs)
             return func
 
         return decorator
+
+    def __add_decoration__(self, func: SyncOrAsyncFunction, context: str, **kwargs) -> None:
+        if context not in self.___decorated_methods___:
+            self.___decorated_methods___[context] = {}
+        self.___decorated_methods___[context][func] = kwargs
 
 
 WRAPPED_METHODS = []
 
 
 # ToDo: check if needed
-def wrapped_method(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[..., Awaitable[Any]]:
+def wrapped_method(func: SyncOrAsyncFunction) -> SyncOrAsyncFunction:
     global WRAPPED_METHODS
     if func.__name__.startswith("before_"):
         raise ValueError("Method name cannot start with 'before_'!")

@@ -3,11 +3,11 @@ from typing import Callable
 from nicegui import APIRouter
 
 from nicegui_admin.helpers import Unset
-from nicegui_admin.sub_page import SubPageHandler
+from nicegui_admin.sub_page import SubPageApp
 from nicegui_admin.views import BaseView
 
 
-class BaseAdmin(APIRouter, SubPageHandler):
+class BaseAdmin(SubPageApp):
     """
     Base class for implementing Admin interface.
     """
@@ -20,8 +20,7 @@ class BaseAdmin(APIRouter, SubPageHandler):
         :param kwargs: Other keyword arguments to be passed to the APIRouter constructor.
         """
 
-        APIRouter.__init__(self, **kwargs)
-        SubPageHandler.__init__(self)
+        SubPageApp.__init__(self, **kwargs)
 
         self.title: str = Unset.resolve(title, "Admin")
         self._views: list[BaseView] = []
@@ -70,11 +69,5 @@ class BaseAdmin(APIRouter, SubPageHandler):
             raise ValueError(f"View '{view_instance}' is already assigned to an admin.")
         setattr(view, "_admin", self)
         self._views.append(view_instance)
-        self.add_sub_page(path=view_instance.path,
-                          builder=view_instance.builder,
-                          title=view_instance.title,
-                          icon=view_instance.icon)
-
-
-    async def builder(self):
-        self.sub_page_cls()
+        self.include_subpage_router(view_instance,
+                                    prefix=view_instance.path)
