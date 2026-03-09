@@ -47,9 +47,10 @@ class BaseField(DecoratedMethodClass):
     align: str | None = field(default="right")
     searchable: bool = field(default=True)
     orderable: bool = field(default=True)
-    disabled: bool | list[str] = field(default=False)
-    read_only: bool | list[str] = field(default=False)
-    exclude: bool | list[str] = field(default=False)
+    disabled: list[str] = field(default_factory=list)
+    read_only: list[str] = field(default_factory=list)
+    exclude: list[str] = field(default_factory=list)
+    exportable: bool = field(default=True)
     cast_type: _type | None = field(default=None)
     serialization_cast_type: _type | Unset | None = field(default=Unset)
     serialization_mute_errors: Exception | tuple[Exception] = field(default_factory=tuple)
@@ -141,11 +142,11 @@ class BaseField(DecoratedMethodClass):
             return method
         return None
 
-    @render_method(mode="list", element_name="table_header_cell")
-    async def list_table_header_cell(self,
-                                     table: ui.table,
-                                     **kwargs) -> Element:
-        table.header(column_name=self.key)
+    # @render_method(mode="list", element_name="table_header_cell") #ToDo: implement custom header cell rendering, with sorting, filtering, etc.
+    # async def list_table_header_cell(self,
+    #                                  table: ui.table,
+    #                                  **kwargs) -> Element:
+    #     table.header(column_name=self.key)
             # ui.icon("thumb_up", size="1.5em")
             # ui.html(content=self.label)
 
