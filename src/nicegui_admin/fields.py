@@ -4,18 +4,20 @@ from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
+from nicegui import ui
+from nicegui.element import Element
+
 from nicegui_admin.helpers import Unset, DecoratedMethodClass, decorate
-from nicegui_admin.types import FieldModes
+from nicegui_admin.types import AsyncFunction
 
 logger = logging.getLogger(__name__)
 _type = type
 
 
-def renderer(mode: FieldModes):
-    return decorate(context="renderer",
-                    mode=mode)
-
-_renderer = renderer
+def render_method(mode: str, element_name: str | None = None):
+    return decorate(context="render_method",
+                    mode=mode,
+                    element_name=element_name)
 
 
 @dataclass
@@ -42,11 +44,12 @@ class BaseField(DecoratedMethodClass):
     help_text: str | None = field(default=None)
     key: str | Unset = field(default=Unset)
     required: bool = field(default=False)
+    align: str | None = field(default="right")
     searchable: bool = field(default=True)
     orderable: bool = field(default=True)
-    disabled: bool | list[FieldModes] = field(default=False)
-    read_only: bool | list[FieldModes] = field(default=False)
-    exclude: bool | list[FieldModes] = field(default=False)
+    disabled: bool | list[str] = field(default=False)
+    read_only: bool | list[str] = field(default=False)
+    exclude: bool | list[str] = field(default=False)
     cast_type: _type | None = field(default=None)
     serialization_cast_type: _type | Unset | None = field(default=Unset)
     serialization_mute_errors: Exception | tuple[Exception] = field(default_factory=tuple)
@@ -56,16 +59,8 @@ class BaseField(DecoratedMethodClass):
     def __post_init__(self) -> None:
         self.label = Unset.resolve(self.label, self.name.replace("_", " ").capitalize())
         self.key = Unset.resolve(self.key, self.name)
-        if self.cast_type is not None:
-            Unset.resolve(self.serialization_cast_type, self.cast_type)
-            Unset.resolve(self.deserialization_cast_type, self.cast_type)
-
-    @property
-    def renderer(self):
-        r = {}
-        for method_name, kwargs in self.__decorated_methods__.get("renderer", {}).items():
-            r[kwargs["mode"]] = getattr(self, method_name)
-        return r
+        self.serialization_cast_type = Unset.resolve(self.serialization_cast_type, self.cast_type)
+        self.deserialization_cast_type = Unset.resolve(self.deserialization_cast_type, self.cast_type)
 
     async def serialize_none(self) -> Any:
         """
@@ -135,27 +130,49 @@ class BaseField(DecoratedMethodClass):
                     value = None
         data[self.key] = value
 
-    async def render(self, mode: FieldModes) -> None:
-        print()
+    def get_render_method(self,
+                                mode: str,
+                                element_name: str | None = None) -> AsyncFunction | None:
+        for method, kwargs in self.__decorated_methods__.get("render_method", {}).items():
+            if kwargs["mode"] != mode:
+                continue
+            if kwargs["element_name"] != element_name:
+                continue
+            return method
+        return None
 
-    @_renderer(mode="list")
+    @render_method(mode="list", element_name="table_header_cell")
+    async def list_table_header_cell(self,
+                                     table: ui.table,
+                                     **kwargs) -> Element:
+        table.header(column_name=self.key)
+            # ui.icon("thumb_up", size="1.5em")
+            # ui.html(content=self.label)
+
+    @render_method(mode="list", element_name="table_body_cell")
+    async def list_table_body_cell(self,
+                                   table: ui.table,
+                                   **kwargs) -> Element:
+        with table.cell(column_name=self.key):
+            with ui.row():
+                return ui.label().props(":innerHTML=\"props.row." + self.key + "\"")
+
+    @render_method(mode="detail")
     @abstractmethod
-    async def list(self):
+    async def detail(self,
+                     **kwargs):
         ...
 
-    @_renderer(mode="detail")
+    @render_method(mode="create")
     @abstractmethod
-    async def detail(self):
+    async def create(self,
+                     **kwargs):
         ...
 
-    @_renderer(mode="create")
+    @render_method(mode="edit")
     @abstractmethod
-    async def create(self):
-        ...
-
-    @_renderer(mode="edit")
-    @abstractmethod
-    async def edit(self):
+    async def edit(self,
+                   **kwargs):
         ...
 
 
@@ -167,16 +184,16 @@ class BooleanField(BaseField):
 
     cast_type = bool
 
-    async def list(self):
+    async def list(self, **kwargs):
         raise NotImplementedError()
 
-    async def detail(self):
+    async def detail(self, **kwargs):
         raise NotImplementedError()
 
-    async def create(self):
+    async def create(self, **kwargs):
         raise NotImplementedError()
 
-    async def edit(self):
+    async def edit(self, **kwargs):
         raise NotImplementedError()
 
 
@@ -206,17 +223,15 @@ class StringField(BaseField):
             return True
         return False
 
-    async def list(self):
+    async def detail(self, **kwargs):
         raise NotImplementedError()
 
-    async def detail(self):
+    async def create(self, **kwargs):
         raise NotImplementedError()
 
-    async def create(self):
+    async def edit(self, **kwargs):
         raise NotImplementedError()
 
-    async def edit(self):
-        raise NotImplementedError()
 
 # @dataclass
 # class TextAreaField(StringField):
@@ -332,16 +347,13 @@ class IntegerField(BaseNumberField):
     cast_type = int
     deserialization_mute_errors = ValueError, TypeError
 
-    async def list(self):
+    async def detail(self, **kwargs):
         raise NotImplementedError()
 
-    async def detail(self):
+    async def create(self, **kwargs):
         raise NotImplementedError()
 
-    async def create(self):
-        raise NotImplementedError()
-
-    async def edit(self):
+    async def edit(self, **kwargs):
         raise NotImplementedError()
 
 
@@ -356,16 +368,13 @@ class DecimalField(BaseNumberField):
     deserialization_cast_type = decimal.Decimal
     deserialization_mute_errors = decimal.InvalidOperation, ValueError
 
-    async def list(self):
+    async def detail(self, **kwargs):
         raise NotImplementedError()
 
-    async def detail(self):
+    async def create(self, **kwargs):
         raise NotImplementedError()
 
-    async def create(self):
-        raise NotImplementedError()
-
-    async def edit(self):
+    async def edit(self, **kwargs):
         raise NotImplementedError()
 
 
@@ -379,16 +388,13 @@ class FloatField(StringField):
     cast_type = int
     deserialization_mute_errors = ValueError
 
-    async def list(self):
+    async def detail(self, **kwargs):
         raise NotImplementedError()
 
-    async def detail(self):
+    async def create(self, **kwargs):
         raise NotImplementedError()
 
-    async def create(self):
-        raise NotImplementedError()
-
-    async def edit(self):
+    async def edit(self, **kwargs):
         raise NotImplementedError()
 
 # @dataclass

@@ -25,8 +25,6 @@ class BaseAdmin(SubPageApp):
         self.title: str = Unset.resolve(title, "Admin")
         self._views: list[BaseView] = []
 
-        self.page("/{_:path}")(self.builder)
-
     @property
     def views(self) -> tuple[BaseView, ...]:
         """

@@ -6,6 +6,7 @@ import inspect
 from types import FrameType
 from typing import Any, TypeVar, Iterable
 
+from nicegui.element import Element
 from nicegui.helpers import is_coroutine_function
 
 from nicegui_admin.types import SyncOrAsyncFunction
@@ -233,6 +234,25 @@ class WrappedMethodClass(metaclass=WrappedMethodClassMeta):
                     result = after(result)
                 return result
         return wrapper
+
+
+# @dataclass
+# class WrappedElement:
+#     cls: type[Element] = field()
+#     args: tuple = field(default_factory=tuple)
+#     kwargs: dict[str, Any] = field(default_factory=dict)
+#     props: list[str] = field(default_factory=list)
+#     classes: list[str] = field(default_factory=list)
+#     children: list["WrappedElement"] = field(default_factory=list)
+#
+#     def __call__(self) -> Element:
+#         element = self.cls(*self.args,
+#                            **self.kwargs)
+#         for prop in self.props:
+#             element.props(prop)
+#         if self.classes:
+#             print()
+#         return element
 
 
 # ToDo: check if needed

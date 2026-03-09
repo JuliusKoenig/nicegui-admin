@@ -4,7 +4,6 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from nicegui import APIRouter
 from nicegui import ui, background_tasks
 from nicegui.page_arguments import RouteMatch, PageArguments
 
@@ -351,7 +350,7 @@ class SubPageRouter(DecoratedMethodClass):
         # for router in self.sub_page_router:
         #     ui.link(router.__class__.__name__, target=router.prefix)
 
-        self.SubPages(self)
+        self.SubPages(self).classes("w-full")
 
     def error_page(self,
                    title: str,
@@ -425,7 +424,7 @@ class SubPageRouter(DecoratedMethodClass):
             logger.error(log_msg)
 
 
-class SubPageApp(APIRouter, SubPageRouter):
+class SubPageApp(SubPageRouter):
     """
     Main application class for the SubPage routing system.
     This class should be instantiated and used to include SubPageRouters and define SubPages using the @sub_page decorator or the add_sub_page method.
@@ -433,14 +432,11 @@ class SubPageApp(APIRouter, SubPageRouter):
 
     def __init__(self,
                  debug: bool = False,
-                 prefix: str = "",
-                 **kwargs):
-        APIRouter.__init__(self,
-                           prefix=prefix,
-                           **kwargs)
+                 prefix: str = ""):
         SubPageRouter.__init__(self,
                                prefix=prefix)
 
         self.debug: bool = debug
-        self.page("/{_:path}")(self.root)
+
+        ui.page("/{_:path}")(self.root)
 
