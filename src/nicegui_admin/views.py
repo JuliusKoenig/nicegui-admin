@@ -8,6 +8,7 @@ from nicegui import ui
 from nicegui_admin.fields import BaseField
 from nicegui_admin.helpers import Unset, slugify_name, prettify_name, wrapped_method
 from nicegui_admin.sub_page import SubPageRouter, sub_page
+from nicegui_admin.types import ExportType
 
 if TYPE_CHECKING:
     from nicegui_admin.admin import BaseAdmin
@@ -55,8 +56,79 @@ class BaseCrudView(BaseView):
     """
 
     fields: Sequence[BaseField | str] = _field(default_factory=list)
+    pk_attr: str | Unset = _field(default=Unset, init=False)
+    exclude_pk: bool = _field(default=False)
+    exclude_fields_from_list: list[str] = _field(default_factory=list)
+    exclude_fields_from_detail: list[str] = _field(default_factory=list)
+    exclude_fields_from_create: list[str] = _field(default_factory=list)
+    exclude_fields_from_edit: list[str] = _field(default_factory=list)
+    searchable_fields: list[str] | None = _field(default=None)
+    sortable_fields: list[str] | None = _field(default=None)
+    export_types: list[ExportType] = _field(default_factory=lambda: [ExportType.CSV,
+                                                                     ExportType.EXCEL,
+                                                                     ExportType.PDF,
+                                                                     ExportType.PRINT])
+    export_fields: list[str] | None = _field(default=None)
 
     def __post_init__(self):
+        if self.pk_attr is Unset:
+            raise AttributeError("pk_attr must be defined in the subclass of BaseCrudView")
+        fringe = list(self.fields)
+        while len(fringe) > 0:
+            field = fringe.pop(0)
+            # if not hasattr(field, "_name"):
+            #     field._name = field.name  # type: ignore
+            # if isinstance(field, CollectionField): #  ToDo: check if need implement Collection Field first
+            #     for f in field.fields:
+            #         f._name = f"{field._name}.{f.name}"  # type: ignore
+            #     fringe.extend(field.fields)
+            # name = field._name  # type: ignore
+            if field.name == self.pk_attr and not self.exclude_pk:
+                if "list" not in field.exclude:
+                    field.exclude.append("list")
+                if "detail" not in field.exclude:
+                    field.exclude.append("detail")
+                if "create" not in field.exclude:
+                    field.exclude.append("create")
+                if "edit" not in field.exclude:
+                    field.exclude.append("edit")
+            if field.name in self.exclude_fields_from_list:
+                if "list" not in field.exclude:
+                    field.exclude.append("list")
+            if field.name in self.exclude_fields_from_detail:
+                if "detail" not in field.exclude:
+                    field.exclude.append("detail")
+            if field.name in self.exclude_fields_from_create:
+                if "create" not in field.exclude:
+                    field.exclude.append("create")
+            if field.name in self.exclude_fields_from_edit:
+                if "edit" not in field.exclude:
+                    field.exclude.append("edit")
+            # if not isinstance(field, CollectionField): # ToDo: check if need implement Collection Field first
+            #     all_field_names.append(name)
+            #     field.searchable = (self.searchable_fields is None) or (
+            #             name in self.searchable_fields
+            #     )
+            #     field.orderable = (self.sortable_fields is None) or (
+            #             name in self.sortable_fields
+            #     )
+
+            if self.searchable_fields is not None:
+                if field.name in self.searchable_fields:
+                    field.searchable = True
+                else:
+                    field.searchable = False
+            if self.sortable_fields is not None:
+                if field.name in self.sortable_fields:
+                    field.orderable = True
+                else:
+                    field.orderable = False
+            if self.export_fields is not None:
+                if field.name in self.export_fields:
+                    field.exportable = True
+                else:
+                    field.exportable = False
+
         super().__post_init__()
 
     @abstractmethod
@@ -98,12 +170,8 @@ class BaseCrudView(BaseView):
     async def get_fields(self, mode: str) -> Sequence[BaseField]:
         result = []
         for field in self.fields:
-            if type(field.exclude) is bool:
-                if field.exclude:
-                    continue
-            elif type(field.exclude) is list:
-                if mode in field.exclude:
-                    continue
+            if mode in field.exclude:
+                continue
             result.append(field)
         return result
 
