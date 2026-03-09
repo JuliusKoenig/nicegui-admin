@@ -41,7 +41,6 @@ class SqlModelCrudView(BaseCrudView):
     converter: BaseSqlModelFieldConverter | Unset = field(default=Unset, repr=False)
 
     def __post_init__(self):
-        super().__post_init__()
         try:
             mapper: Mapper = inspect(self.model)
         except NoInspectionAvailable:
@@ -57,24 +56,18 @@ class SqlModelCrudView(BaseCrudView):
             attr = getattr(self.model, key)
             if isinstance(attr, InstrumentedAttribute) and getattr(attr, "primary_key", False):
                 _pk_attrs.append(key)
-        if len(_pk_attrs) > 1:
-            raise NotImplementedError("MultiplePKField is not implemented yet")  # ToDo: implement MultiplePKField
-            self._pk_column = tuple(getattr(self.model, attr) for attr in _pk_attrs)
-            self._pk_coerce = tuple(
-                extract_column_python_type(c) for c in self._pk_column
-            )
-            self.pk_field: BaseField = MultiplePKField(_pk_attrs)
-        else:
-            assert (len(_pk_attrs) == 1), f"No primary key found in model {self.model.__name__}"
+        if len(_pk_attrs) == 0:
+            raise InvalidModelError(f"No primary key found in model {self.model.__name__}")
+        elif len(_pk_attrs) == 1:
             self._pk_column = getattr(self.model, _pk_attrs[0])
             self._pk_coerce = extract_column_python_type(self._pk_column)  # type: ignore[arg-type]
-            try:
-                # Try to find the primary key field among the fields
-                self.pk_field = next(f for f in self.fields if f.name == _pk_attrs[0])
-            except StopIteration:
-                # If the primary key is not among the fields, treat its value as a string
-                self.pk_field = StringField(_pk_attrs[0])
-        self.pk_attr = self.pk_field.name
+            self.pk_attr = _pk_attrs[0]
+        else:
+            self._pk_column = tuple(getattr(self.model, attr) for attr in _pk_attrs)
+            self._pk_coerce = tuple(extract_column_python_type(c) for c in self._pk_column)
+            self.pk_attr = ",".join(_pk_attrs)
+
+        super().__post_init__()
 
     @property
     def admin(self) -> Union["SqlModelAdmin", Any, None]:
