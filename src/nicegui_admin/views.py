@@ -175,7 +175,7 @@ class BaseCrudView(BaseView):
             result.append(field)
         return result
 
-    @sub_page("/list")
+    @sub_page("/")
     async def ui_list(self,
                       offset: int = 0,
                       limit: int = 100,
@@ -185,10 +185,10 @@ class BaseCrudView(BaseView):
         fields = await self.get_fields(mode="list")
 
         # get data # ToDo: implement pagination, filtering, sorting, with async loading, etc.
-        rows = list(await self.list(offset=offset,
-                                    limit=limit,
-                                    where=where,
-                                    order_by=order_by))
+        rows = await self.list(offset=offset,
+                        limit=limit,
+                        where=where,
+                        order_by=order_by)
 
         # build table
         table = ui.table(columns=[{"name": field.name,
@@ -197,10 +197,8 @@ class BaseCrudView(BaseView):
                                    "required": field.required,
                                    "sortable": field.orderable,
                                    "align": "left"} for field in fields],
-                         rows=rows,
+                         rows=list(rows),
                          row_key='name').classes("w-full")
-
-
 
         # render header cells
         for field in fields:
@@ -210,11 +208,17 @@ class BaseCrudView(BaseView):
                 with table.add_slot(name=f"header-cell-{field.key}"):
                     await render_method(table=table)
 
-
         # render body cells
         for field in fields:
             render_method = field.get_render_method(mode="list",
-                                      element_name="table_body_cell")
+                                                    element_name="table_body_cell")
             if render_method is not None:
                 with table.add_slot(name=f"body-cell-{field.key}"):
                     await render_method(table=table)
+
+        # setup event handlers
+        table.on("row-click", lambda e: ui.navigate.to(f"{self.prefix}/{e.args[1][self.pk_attr]}"))
+
+    @sub_page("/{pk}")
+    async def get_detail(self, pk: Any) -> dict[str, Any] | None:
+        print()
