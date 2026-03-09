@@ -16,14 +16,14 @@ class MyAdmin(SqlModelAdmin):
 admin = MyAdmin(debug=True, prefix="/admin")
 
 
-class MyModel1(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    qwe: str = Field(index=True)
-
-
-@admin.view(model=MyModel1, fields=["id", "qwe"])
-class MyView1(SqlModelCrudView):
-    ...
+# class MyModel1(SQLModel, table=True):
+#     id: int | None = Field(default=None, primary_key=True)
+#     qwe: str = Field(index=True)
+#
+#
+# @admin.view(model=MyModel1, fields=["id", "qwe"])
+# class MyView1(SqlModelCrudView):
+#     ...
 
 
 class MyModel2(SQLModel, table=True):
