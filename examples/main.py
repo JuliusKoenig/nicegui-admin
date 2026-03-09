@@ -65,14 +65,6 @@ async def async_error_page():
     raise RuntimeError("Asynchronous error")
 
 
-@test2_view.sub_page("/")
-async def index() -> None:
-    await test2_view.create({"asd": "".join(random.choices(string.ascii_letters + string.digits, k=10))})
-    result = await test2_view.list()
-    for i, item in enumerate(result):
-        item_json = json.dumps(item, indent=4)
-        ui.label(f"Item {i}:\n{item_json}")
-
 
 app.include_router(admin)
 

@@ -1,11 +1,16 @@
+import json
+import random
+import string
 from dataclasses import dataclass, field
 from typing import Union, TYPE_CHECKING, Literal
 from abc import abstractmethod, ABC
 from typing import Any, Sequence
 
+from nicegui import ui
+
 from nicegui_admin.fields import BaseField
 from nicegui_admin.helpers import Unset, slugify_name, prettify_name, WrappedMethodClass, wrapped_method, DecoratedMethodClass
-from nicegui_admin.sub_page import SubPageRouter
+from nicegui_admin.sub_page import SubPageRouter, sub_page
 
 if TYPE_CHECKING:
     from nicegui_admin.admin import BaseAdmin
@@ -92,3 +97,11 @@ class BaseCrudView(BaseView):
     async def delete(self,
                      *pks: Any) -> bool | Sequence[bool]:
         raise NotImplementedError()
+
+    @sub_page("/list")
+    async def ui_list(self) -> None:
+        await self.create({"asd": "".join(random.choices(string.ascii_letters + string.digits, k=10))})
+        result = await self.list()
+        for i, item in enumerate(result):
+            item_json = json.dumps(item, indent=4)
+            ui.label(f"Item {i}:\n{item_json}")

@@ -342,14 +342,14 @@ class SubPageRouter(DecoratedMethodClass):
         :return: None
         """
 
-        ui.label("Router: " + self.__class__.__name__)
-        ui.label("Prefix: " + self.prefix)
-        ui.label("SubPages:")
-        for path, kwargs in self.sub_pages.items():
-            ui.link(kwargs["title"], target=path)
-        ui.label("Included SubPageRouters:")
-        for router in self.sub_page_router:
-            ui.link(router.__class__.__name__, target=router.prefix)
+        # ui.label("Router: " + self.__class__.__name__)
+        # ui.label("Prefix: " + self.prefix)
+        # ui.label("SubPages:")
+        # for path, kwargs in self.sub_pages.items():
+        #     ui.link(kwargs["title"], target=path)
+        # ui.label("Included SubPageRouters:")
+        # for router in self.sub_page_router:
+        #     ui.link(router.__class__.__name__, target=router.prefix)
 
         self.SubPages(self)
 
