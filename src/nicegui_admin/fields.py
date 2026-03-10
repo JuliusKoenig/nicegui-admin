@@ -1,6 +1,5 @@
 import decimal
 import logging
-from abc import abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -39,7 +38,7 @@ class BaseField(DecoratedMethodClass):
     """
 
     name: str = field()
-    type: str = field()
+    type: type = field()
     label: str | Unset = field(default=Unset)
     help_text: str | None = field(default=None)
     key: str | Unset = field(default=Unset)
@@ -58,6 +57,8 @@ class BaseField(DecoratedMethodClass):
     deserialization_mute_errors: Exception | tuple[Exception] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
+        if self.name.startswith("_"):
+            raise ValueError("Field name cannot start with an underscore")
         self.label = Unset.resolve(self.label, self.name.replace("_", " ").capitalize())
         self.key = Unset.resolve(self.key, self.name)
         self.serialization_cast_type = Unset.resolve(self.serialization_cast_type, self.cast_type)
@@ -132,8 +133,8 @@ class BaseField(DecoratedMethodClass):
         data[self.key] = value
 
     def get_render_method(self,
-                                mode: str,
-                                element_name: str | None = None) -> AsyncFunction | None:
+                          mode: str,
+                          element_name: str | None = None) -> AsyncFunction | None:
         for method, kwargs in self.__decorated_methods__.get("render_method", {}).items():
             if kwargs["mode"] != mode:
                 continue
@@ -142,38 +143,40 @@ class BaseField(DecoratedMethodClass):
             return method
         return None
 
-    # @render_method(mode="list", element_name="table_header_cell") #ToDo: implement custom header cell rendering, with sorting, filtering, etc.
+    # @render_method(mode="list", element_name="label") #ToDo: implement custom header cell rendering, with sorting, filtering, etc.
     # async def list_table_header_cell(self,
     #                                  table: ui.table,
     #                                  **kwargs) -> Element:
     #     table.header(column_name=self.key)
-            # ui.icon("thumb_up", size="1.5em")
-            # ui.html(content=self.label)
+    # ui.icon("thumb_up", size="1.5em")
+    # ui.html(content=self.label)
 
-    @render_method(mode="list", element_name="table_body_cell")
+    @render_method(mode="list", element_name="value")
     async def list_table_body_cell(self,
                                    table: ui.table,
                                    **kwargs) -> Element:
         with table.cell(column_name=self.key):
-            with ui.row():
-                return ui.label().props(":innerHTML=\"props.row." + self.key + "\"")
+            return ui.label().props(":innerHTML=\"props.row." + self.key + "\"")
 
-    @render_method(mode="detail")
-    @abstractmethod
-    async def detail(self,
-                     **kwargs):
+    @render_method(mode="detail", element_name="label")
+    async def detail_label(self,
+                           **kwargs):
+        return ui.label(text=self.label)
+
+    @render_method(mode="detail", element_name="value")
+    async def detail_value(self,
+                           value: Any,
+                           **kwargs):
+        return ui.label(text=value)
+
+    @render_method(mode="form", element_name="label")
+    async def form_label(self,
+                         **kwargs):
         ...
 
-    @render_method(mode="create")
-    @abstractmethod
-    async def create(self,
-                     **kwargs):
-        ...
-
-    @render_method(mode="edit")
-    @abstractmethod
-    async def edit(self,
-                   **kwargs):
+    @render_method(mode="form", element_name="value")
+    async def form_value(self,
+                         **kwargs):
         ...
 
 
@@ -184,18 +187,6 @@ class BooleanField(BaseField):
     """
 
     cast_type = bool
-
-    async def list(self, **kwargs):
-        raise NotImplementedError()
-
-    async def detail(self, **kwargs):
-        raise NotImplementedError()
-
-    async def create(self, **kwargs):
-        raise NotImplementedError()
-
-    async def edit(self, **kwargs):
-        raise NotImplementedError()
 
 
 @dataclass
@@ -223,15 +214,6 @@ class StringField(BaseField):
         if isinstance(value, str) and value.strip() == "":
             return True
         return False
-
-    async def detail(self, **kwargs):
-        raise NotImplementedError()
-
-    async def create(self, **kwargs):
-        raise NotImplementedError()
-
-    async def edit(self, **kwargs):
-        raise NotImplementedError()
 
 
 # @dataclass
@@ -348,15 +330,6 @@ class IntegerField(BaseNumberField):
     cast_type = int
     deserialization_mute_errors = ValueError, TypeError
 
-    async def detail(self, **kwargs):
-        raise NotImplementedError()
-
-    async def create(self, **kwargs):
-        raise NotImplementedError()
-
-    async def edit(self, **kwargs):
-        raise NotImplementedError()
-
 
 @dataclass
 class DecimalField(BaseNumberField):
@@ -369,15 +342,6 @@ class DecimalField(BaseNumberField):
     deserialization_cast_type = decimal.Decimal
     deserialization_mute_errors = decimal.InvalidOperation, ValueError
 
-    async def detail(self, **kwargs):
-        raise NotImplementedError()
-
-    async def create(self, **kwargs):
-        raise NotImplementedError()
-
-    async def edit(self, **kwargs):
-        raise NotImplementedError()
-
 
 @dataclass
 class FloatField(StringField):
@@ -388,15 +352,6 @@ class FloatField(StringField):
 
     cast_type = int
     deserialization_mute_errors = ValueError
-
-    async def detail(self, **kwargs):
-        raise NotImplementedError()
-
-    async def create(self, **kwargs):
-        raise NotImplementedError()
-
-    async def edit(self, **kwargs):
-        raise NotImplementedError()
 
 # @dataclass
 # class TagsField(BaseField):

@@ -1,8 +1,12 @@
+import logging
+import random
+import string
 from dataclasses import dataclass, field as _field
 from typing import Union, TYPE_CHECKING
 from abc import abstractmethod
 from typing import Any, Sequence
 
+from fastapi import HTTPException
 from nicegui import ui
 
 from nicegui_admin.elements.detail_table import DetailTable
@@ -50,6 +54,7 @@ class BaseView(SubPageRouter):
 
 WHERE = dict[str, Any] | None
 ORDER_BY = list[str] | None
+_list = list
 
 
 @dataclass
@@ -59,7 +64,7 @@ class BaseCrudView(BaseView):
     """
 
     fields: Sequence[BaseField | str] = _field(default_factory=list)
-    pk_attr: str | Unset = _field(default=Unset, init=False)
+    pk_field: BaseField | None = _field(default=None, init=False)
     exclude_pk: bool = _field(default=False)
     exclude_fields_from_list: list[str] = _field(default_factory=list)
     exclude_fields_from_detail: list[str] = _field(default_factory=list)
@@ -74,8 +79,6 @@ class BaseCrudView(BaseView):
     export_fields: list[str] | None = _field(default=None)
 
     def __post_init__(self):
-        if self.pk_attr is Unset:
-            raise AttributeError("pk_attr must be defined in the subclass of BaseCrudView")
         fringe = list(self.fields)
         while len(fringe) > 0:
             field = fringe.pop(0)
@@ -86,7 +89,7 @@ class BaseCrudView(BaseView):
             #         f._name = f"{field._name}.{f.name}"  # type: ignore
             #     fringe.extend(field.fields)
             # name = field._name  # type: ignore
-            if field.name == self.pk_attr and not self.exclude_pk:
+            if field.name in self.pk_attrs and not self.exclude_pk:
                 if "list" not in field.exclude:
                     field.exclude.append("list")
                 if "detail" not in field.exclude:
@@ -134,6 +137,18 @@ class BaseCrudView(BaseView):
 
         super().__post_init__()
 
+    @property
+    def pk_attr(self) -> str:
+        if self.pk_field is None:
+            raise AttributeError("pk_field is not defined")
+        return self.pk_field.name
+
+    @property
+    def pk_attrs(self) -> list[str]:
+        if self.pk_field is None:
+            raise AttributeError("pk_field is not defined")
+        return self.pk_field.name.split(",")
+
     @abstractmethod
     async def count(self,
                     where: WHERE = None) -> int:
@@ -150,9 +165,7 @@ class BaseCrudView(BaseView):
     @wrapped_method
     async def detail(self,
                      pk: Any) -> dict[str, Any] | None:
-        result = await self.list(limit=1,
-                                 where={"pk": pk})
-        return result[0] if result else None
+        raise NotImplementedError()
 
     @abstractmethod
     async def create(self,
@@ -170,6 +183,37 @@ class BaseCrudView(BaseView):
                      *pks: Any) -> bool | Sequence[bool]:
         raise NotImplementedError()
 
+    async def serialize(self,
+                        *data: dict[str, Any],
+                        fields: Sequence[BaseField]) -> _list[dict[str, Any]]:
+        serialized_data = []
+        for data_set in data:
+            # if data_set is None, it means that the object was not found, so we return None for this data set
+            if data_set is None:
+                serialized_data.append(None)
+                continue
+
+            # add hidden _pk to serialized data for reference
+            serialized_data_set = {"_pk": (await self.pk_field.serialize(data=data_set))[1]}
+
+            # serialize fields
+            for field in fields:
+                is_none, value = await field.serialize(data=data_set)
+                serialized_data_set[field.name] = value
+            serialized_data.append(serialized_data_set)
+        return serialized_data
+
+    async def deserialize(self,
+                          *data: dict[str, Any],
+                          fields: Sequence[BaseField]) -> _list[dict[str, Any]]:
+        deserialized_data = []
+        for data_set in data:
+            deserialized_data_set = {}
+            for field in fields:
+                await field.deserialize(data=data_set)
+            deserialized_data.append(deserialized_data_set)
+        return deserialized_data
+
     async def get_fields(self, mode: str) -> Sequence[BaseField]:
         result = []
         for field in self.fields:
@@ -184,57 +228,77 @@ class BaseCrudView(BaseView):
                       limit: int = 100,
                       where: WHERE = None,
                       order_by: ORDER_BY = None) -> None:
+        # ToDo: remove after testing
+        await self.create({
+            "id": random.randint(1, 10000000),
+            "name": "".join(random.choices(string.ascii_letters, k=10)),
+            "asd": "".join(random.choices(string.ascii_letters, k=10))
+        })
+
         # get fields
         fields = await self.get_fields(mode="list")
 
         # get data # ToDo: implement pagination, filtering, sorting, with async loading, etc.
-        rows = await self.list(offset=offset,
-                               limit=limit,
-                               where=where,
-                               order_by=order_by)
+        rows = await self.serialize(*await self.list(offset=offset,
+                                                     limit=limit,
+                                                     where=where,
+                                                     order_by=order_by),
+                                    fields=fields)
 
         # build table
         table = ui.table(columns=[{"name": field.name,
                                    "label": field.label,
-                                   "field": field.key,
+                                   "field": field.name,
                                    "required": field.required,
                                    "sortable": field.orderable,
                                    "align": "left"} for field in fields],
-                         rows=list(rows),
+                         rows=rows,
                          row_key='name').classes("w-full")
 
-        # render header cells
+        # render label cells
         for field in fields:
             render_method = field.get_render_method(mode="list",
-                                                    element_name="table_header_cell")
+                                                    element_name="label")
             if render_method is not None:
                 with table.add_slot(name=f"header-cell-{field.key}"):
                     await render_method(table=table)
 
-        # render body cells
+        # render value cells
         for field in fields:
             render_method = field.get_render_method(mode="list",
-                                                    element_name="table_body_cell")
+                                                    element_name="value")
             if render_method is not None:
                 with table.add_slot(name=f"body-cell-{field.key}"):
                     await render_method(table=table)
 
         # setup event handlers
-        table.on("row-click", lambda e: ui.navigate.to(f"{self.prefix}/{e.args[1][self.pk_attr]}"))
+        table.on("row-click",
+                 lambda e: ui.navigate.to(f"{self.prefix}/{e.args[1]['_pk']}"))
 
     @sub_page("/{pk}")
-    async def get_detail(self, pk: Any) -> dict[str, Any] | None:
+    async def ui_detail(self, pk: str) -> None:
+        # get fields
+        fields = await self.get_fields(mode="detail")
+
+        # get data
+        data = (await self.serialize(await self.detail(pk=pk),
+                                    fields=fields))[0]
+        if data is None:
+            raise HTTPException(status_code=404, detail=f"{self.title} with pk '{pk}' not found!")
+
         with DetailTable(columns=["Attribute",
                                   "Value"]).classes("w-full"):
-            ui.label('attribute1')
-            ui.label('value1')
-            ui.label('attribute2')
-            ui.label('value2')
-            ui.label('attribute3')
-            ui.label('value3')
-            ui.label('attribute4')
-            ui.label('value4')
-            ui.label('attribute5')
-            ui.label('value5')
+            for field in fields:
+                # render label
+                label_render_method = field.get_render_method(mode="detail",
+                                                              element_name="label")
+                if label_render_method is not None:
+                    await label_render_method()
+
+                # render value
+                value_render_method = field.get_render_method(mode="detail",
+                                                              element_name="value")
+                if value_render_method is not None:
+                    await value_render_method(value=data.get(field.name))
 
         ui.button("Back", on_click=lambda e: ui.navigate.back())
