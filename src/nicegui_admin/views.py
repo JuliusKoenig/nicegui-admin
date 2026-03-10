@@ -5,6 +5,7 @@ from typing import Any, Sequence
 
 from nicegui import ui
 
+from nicegui_admin.elements.detail_table import DetailTable
 from nicegui_admin.fields import BaseField
 from nicegui_admin.helpers import Unset, slugify_name, prettify_name, wrapped_method
 from nicegui_admin.sub_page import SubPageRouter, sub_page
@@ -186,9 +187,9 @@ class BaseCrudView(BaseView):
 
         # get data # ToDo: implement pagination, filtering, sorting, with async loading, etc.
         rows = await self.list(offset=offset,
-                        limit=limit,
-                        where=where,
-                        order_by=order_by)
+                               limit=limit,
+                               where=where,
+                               order_by=order_by)
 
         # build table
         table = ui.table(columns=[{"name": field.name,
@@ -221,4 +222,17 @@ class BaseCrudView(BaseView):
 
     @sub_page("/{pk}")
     async def get_detail(self, pk: Any) -> dict[str, Any] | None:
-        print()
+        with DetailTable(columns=["Attribute",
+                                  "Value"]).classes("w-full"):
+            ui.label('attribute1')
+            ui.label('value1')
+            ui.label('attribute2')
+            ui.label('value2')
+            ui.label('attribute3')
+            ui.label('value3')
+            ui.label('attribute4')
+            ui.label('value4')
+            ui.label('attribute5')
+            ui.label('value5')
+
+        ui.button("Back", on_click=lambda e: ui.navigate.back())
