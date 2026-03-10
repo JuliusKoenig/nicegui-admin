@@ -131,7 +131,7 @@ class SqlModelFieldConverter(BaseSqlModelFieldConverter):
 
     @classmethod
     def _string_common(cls, *, _type: Any, **kwargs: Any) -> Dict[str, Any]:
-        if isinstance(type, String) and isinstance(_type.length, int) and t.length > 0:
+        if isinstance(type, String) and isinstance(_type.length, int) and _type.length > 0:
             return {"maxlength": _type.length}
         return {}
 
