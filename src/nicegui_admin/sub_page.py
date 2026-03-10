@@ -4,7 +4,8 @@ import traceback
 from pathlib import Path
 from typing import Any, Callable, Optional
 
-from nicegui import ui, background_tasks
+from fastapi import HTTPException
+from nicegui import ui, background_tasks, app
 from nicegui.page_arguments import RouteMatch, PageArguments
 
 from nicegui_admin.helpers import DecoratedMethodClass, decorate, Unset, prettify_name
@@ -144,13 +145,8 @@ class SubPageRouter(DecoratedMethodClass):
             :return: None
             """
 
-            self.clear()
-            self.sub_page_router.error_page(title=f"404 - Page Not Found",
-                                            icon="search_off",
-                                            color="red",
-                                            message=f"The page '{self._router.current_path}' does not exist.",
-                                            buttons=True,
-                                            log=True)
+            raise HTTPException(status_code=404, detail=f"The page '{self._router.current_path}' does not exist.")
+
 
         def _render_error(self, error: Exception) -> None:
             """
@@ -162,11 +158,7 @@ class SubPageRouter(DecoratedMethodClass):
             """
 
             self.clear()
-            self.sub_page_router.error_page(title="500 - Internal Server Error",
-                                            icon="error_outline",
-                                            color="red",
-                                            message=f"The page '{self._router.current_path}' produced an error.",
-                                            error=error,
+            self.sub_page_router.error_page(error=error,
                                             buttons=True,
                                             log=True)
 
@@ -175,8 +167,10 @@ class SubPageRouter(DecoratedMethodClass):
             Overwritten to ensure that the 404 page is only shown when no route matches,
             and not when a route matches but an error occurs while rendering the page.
             """
-
-            super()._set_match(match=match)
+            try:
+                super()._set_match(match=match)
+            except HTTPException as e:
+                self._render_error(e)
             self.has_404 = False
 
     def __init__(self,
@@ -353,10 +347,11 @@ class SubPageRouter(DecoratedMethodClass):
         self.SubPages(self).classes("w-full")
 
     def error_page(self,
-                   title: str,
-                   icon: str | None = None,
-                   color: str | None = "red",
-                   message: str | None = None,
+                   status_code: int | Unset = Unset,
+                   title: str | Unset = Unset,
+                   icon: str | Unset | None = Unset,
+                   color: str | Unset | None = Unset,
+                   message: str | Unset | None = Unset,
                    error: Exception | None = None,
                    buttons: bool = True,
                    log: bool = True) -> None:
@@ -364,6 +359,7 @@ class SubPageRouter(DecoratedMethodClass):
         Renders an error page with the given title, icon, color, and message.
         If the SubPageApp is in debug mode and an error is provided, the stack trace of the error will also be displayed on the error page.
 
+        :param status_code: The HTTP status code to be returned with the error page. Defaults to 500.
         :param title: The title of the error page.
         :param icon: The icon to be displayed on the error page. Can be either a URL or a local file path. If not provided, no icon will be displayed on the error page.
          Note that favicon for error pages is not yet supported, so the icon will be ignored and a warning will be logged if an icon is provided.
@@ -375,51 +371,82 @@ class SubPageRouter(DecoratedMethodClass):
         :return: None
         """
 
+        if type(error) is HTTPException:
+            status_code = Unset.resolve(status_code, error.status_code)
+            if status_code == 404:
+                title = Unset.resolve(message, error.detail)
+                icon = Unset.resolve(icon, "search_off")
+                message = None
+            if self.sub_page_app.debug:
+                title = Unset.resolve(title, error.__class__.__name__)
+                message = Unset.resolve(message, error.detail)
+
+        status_code = Unset.resolve(status_code, 500)
+        title = Unset.resolve(title, "Internal Server Error")
+        icon = Unset.resolve(icon, "error_outline")
+        color = Unset.resolve(color, "red")
+        message = Unset.resolve(message, "An unexpected error occurred.")
+
+
         # ToDo: implement favicon for error pages
-        if self.sub_page_app.debug:
-            title = f"(Debug Mode) - {title}"
-        ui.page_title(title)
+        ui.page_title(f"(Debug Mode) - {title}" if self.sub_page_app.debug else title)
         log_msg = title
-        with (ui.column().classes("absolute-center items-center")):
+        with ui.scroll_area().classes("absolute-center w-full h-full pl-4 pr-4"), ui.column().classes("items-center w-full"):
+            # icon
             if icon is not None:
                 _icon = ui.icon(icon, size="4rem")
                 if color is not None:
                     _icon.classes(f"text-{color}")
+
+            # caption
+            _status_code_title = ui.label(str(status_code)).classes("text-8xl")
+            if color is not None:
+                _status_code_title.classes(f"text-{color}")
             _title = ui.label(title).classes("text-2xl")
             if color is not None:
                 _title.classes(f"text-{color}")
-            ui.label().classes("text-gray-600")
+
+            # message
             if message is not None:
                 ui.label(message).classes("text-gray-600")
                 log_msg += f" -> {message}"
+
+            # debug info
             if self.sub_page_app.debug:
-                with ui.grid(columns=2):
-                    ui.label("Router:")
-                    ui.link(self.__class__.__name__, target=self.prefix)
+                with ui.card().classes("w-400 items-center").props('flat bordered') as card:
+                    ui.label(f"(Debug Mode)").classes("text-xl")
+                    with ui.grid(columns="1fr 2fr"):
+                        ui.label("Router:")
+                        ui.link(self.__class__.__name__, target=self.prefix)
 
-                    ui.label("Parent Router:")
-                    if self.parent_sub_page_router is not None:
-                        ui.link(self.parent_sub_page_router.__class__.__name__, target=self.parent_sub_page_router.prefix)
-                    else:
-                        ui.label("None")
+                        ui.label("Parent Router:")
+                        if self.parent_sub_page_router is not None:
+                            ui.link(self.parent_sub_page_router.__class__.__name__, target=self.parent_sub_page_router.prefix)
+                        else:
+                            ui.label("None")
 
-                    ui.label("SubPages:")
-                    with ui.row():
-                        for path, kwargs in self.sub_pages.items():
-                            ui.link(kwargs["title"], target=path)
+                        ui.label("SubPages:")
+                        with ui.row():
+                            for path, kwargs in self.sub_pages.items():
+                                ui.link(kwargs["title"], target=path)
 
-                    ui.label("Included SubPageRouters:")
-                    with ui.row():
-                        for router in self.sub_page_router:
-                            ui.link(router.__class__.__name__, target=router.prefix)
+                        ui.label("Included SubPageRouters:")
+                        with ui.row():
+                            for router in self.sub_page_router:
+                                ui.link(router.__class__.__name__, target=router.prefix)
             if error is not None and self.sub_page_app.debug:
-                stack_trace = traceback.format_exc()
-                ui.code(stack_trace)
-                log_msg += f"\n{stack_trace}"
+                with card:
+                    stack_trace = traceback.format_exc()
+                    ui.code(stack_trace).classes("w-full text-left bg-grey-100")
+                    log_msg += f"\n{stack_trace}"
+
+            # navigation buttons
             if buttons:
                 with ui.row().classes("mt-4"):
                     ui.button("Go Home", icon="home", on_click=lambda: ui.navigate.to(self.sub_page_app.prefix)).props("outline")
                     ui.button("Go Back", icon="arrow_back", on_click=ui.navigate.back).props("outline")
+
+        # log error
         if log:
             logger.error(log_msg)
 
