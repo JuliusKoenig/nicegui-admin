@@ -9,6 +9,7 @@ _Very early stage of development, but you can already check out the code and giv
 ## Roadmap
 - [x] Claim Repository & PyPI Package Name
 - [ ] CRUD operations
+  - [ ] supporting async and sync database operations
   - [ ] list
     - [x] table view
     - [ ] grid view
@@ -45,6 +46,15 @@ _Very early stage of development, but you can already check out the code and giv
     - [ ] delete popup confirmation
     - [ ] inline delete in list view
     - [ ] bulk delete
+- Layout and UI
+  - [ ] header
+  - [ ] sidebar
+  - [ ] footer
+  - [ ] menu structure
+    - [ ] support for nested menu items
+    - [ ] support for menu icons
+  - [ ] dark mode
+  - [ ] translation and localization
 - [ ] Actions
   - reimplement delete as action
   - [ ] bulk actions
@@ -55,7 +65,6 @@ _Very early stage of development, but you can already check out the code and giv
 - [ ] Implement all starlette-admin field types
 - [ ] Implement Testsystem and cover existing code
 - [ ] Create Docs page and complete README
-- [ ] supporting async and sync database operations
 - [ ] User Authentication, Authorization and Management
   - [ ] User Authentication
     - [ ] login/logout
