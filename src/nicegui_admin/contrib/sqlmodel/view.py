@@ -10,6 +10,7 @@ from sqlalchemy.sql import Select
 
 from nicegui_admin.contrib.sqlmodel.converters import BaseSqlModelFieldConverter, SqlModelFieldConverter
 from nicegui_admin.contrib.sqlmodel.exceptions import InvalidModelError
+from nicegui_admin.contrib.sqlmodel.fields import MultiplePKField
 from nicegui_admin.contrib.sqlmodel.helpers import build_query, extract_column_python_type
 from nicegui_admin.views import BaseCrudView, WHERE, ORDER_BY
 from nicegui_admin.helpers import Unset, iterdecode, not_none
@@ -61,12 +62,16 @@ class SqlModelCrudView(BaseCrudView):
         elif len(_pk_attrs) == 1:
             self._pk_column = getattr(self.model, _pk_attrs[0])
             self._pk_coerce = extract_column_python_type(self._pk_column)  # type: ignore[arg-type]
-            self.pk_attr = _pk_attrs[0]
+            try:
+                # Try to find the primary key field among the fields
+                self.pk_field = next(f for f in self.fields if f.name == _pk_attrs[0])
+            except StopIteration:
+                # If the primary key is not among the fields, treat its value as a string
+                self.pk_field = StringField(_pk_attrs[0], type=self._pk_column.type) # ToDo: type is needed
         else:
             self._pk_column = tuple(getattr(self.model, attr) for attr in _pk_attrs)
             self._pk_coerce = tuple(extract_column_python_type(c) for c in self._pk_column)
-            self.pk_attr = ",".join(_pk_attrs)
-
+            self.pk_field: BaseField = MultiplePKField(pk_attrs=_pk_attrs, _type=tuple([t.type for t in self._pk_column]))
         super().__post_init__()
 
     @property

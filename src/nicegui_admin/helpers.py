@@ -315,7 +315,6 @@ CHAR_ESCAPE = "."
 CHAR_SEPARATOR = ","
 
 
-# ToDo: check if needed
 def escape(value: str) -> str:
     """
     Escape a string using custom escaping rules.
@@ -327,7 +326,6 @@ def escape(value: str) -> str:
     return value.replace(CHAR_ESCAPE, CHAR_ESCAPE + CHAR_ESCAPE).replace(CHAR_SEPARATOR, CHAR_ESCAPE + CHAR_SEPARATOR)
 
 
-# ToDo: check if needed
 def iterencode(i: Iterable[str]) -> str:
     """
     Encode a sequence of strings into a single string. Each value in the sequence is escaped before being joined
