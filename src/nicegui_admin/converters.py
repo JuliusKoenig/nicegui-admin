@@ -88,20 +88,13 @@ class BasePythonFieldConverter(BaseFieldConverter):
 
         # Otherwise, try to find a converter for any of the type's base classes.
         for cls, converter in self.converters.items():
-            if (
-                    inspect.isclass(cls)
-                    and inspect.isclass(_type)
-                    and _origin is None  # exclude generic
-                    and issubclass(_type, cls)
-            ):
+            if inspect.isclass(cls) and inspect.isclass(_type) and _origin is None and issubclass(_type, cls):
                 return converter
             if inspect.isclass(cls) and isinstance(_type, cls):
                 return converter
 
-        raise NotSupportedAnnotation(
-            f"Cannot automatically convert '{_type}'. Find the appropriate field"
-            " manually or provide your own converter"
-        )
+        raise NotSupportedAnnotation(f"Cannot automatically convert '{_type}'. Find the appropriate field"
+                                     " manually or provide your own converter")
 
     def convert(self, *args: Any, **kwargs: Any) -> BaseField:
         return self.get_converter(kwargs.get("_type"))(*args, **kwargs)
