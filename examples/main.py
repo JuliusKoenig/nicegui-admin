@@ -28,10 +28,11 @@ admin = MyAdmin(debug=True, prefix="/admin")
 
 class MyModel2(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
+    name: str = Field(primary_key=True)
     asd: str = Field(index=True)
 
 
-test2_view = SqlModelCrudView(model=MyModel2, fields=["id", "asd"])
+test2_view = SqlModelCrudView(model=MyModel2, fields=["id", "name", "asd"])
 admin.add_view(test2_view)
 
 
@@ -61,4 +62,5 @@ admin.add_view(test2_view)
 
 if __name__ in {"__main__", "__mp_main__"}:
     SQLModel.metadata.create_all(admin.engine)
+
     ui.run(port=8000, show=False, fastapi_docs=True, prod_js=False)
