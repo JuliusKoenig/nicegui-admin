@@ -27,6 +27,7 @@ class BaseView(SubPageRouter):
 
     path: str | Unset = _field(default=Unset)
     title: str | Unset = _field(default=Unset)
+    title_plural: str | Unset = _field(default=Unset, repr=False)
     icon: str | Unset | None = _field(default=Unset, repr=False)
 
     def __post_init__(self):
@@ -35,6 +36,7 @@ class BaseView(SubPageRouter):
         if not self.path.startswith("/"):
             self.path = "/" + self.path
         self.title: str = Unset.resolve(self.title, prettify_name(self.__class__.__name__))
+        self.title_plural: str = Unset.resolve(self.title_plural, prettify_name(self.__class__.__name__))
         self.icon = Unset.resolve(self.icon, None)
 
     @property
