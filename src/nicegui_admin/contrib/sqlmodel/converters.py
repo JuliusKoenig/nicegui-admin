@@ -3,15 +3,16 @@ import enum
 import inspect
 from typing import Any, Callable, Dict, Optional, Sequence
 
-from sqlalchemy import ARRAY, Boolean, Column, Float, String
+from sqlalchemy import ARRAY, Boolean, Column, Float, String, inspect as sqlalchemy_inspect
 from sqlalchemy.orm import (
     ColumnProperty,
     InstrumentedAttribute,
     Mapper,
     RelationshipProperty,
 )
+from sqlalchemy.exc import NoInspectionAvailable
 from sqlalchemy.sql.elements import ColumnElement, Label
-from nicegui_admin.contrib.sqlmodel.exceptions import NotSupportedColumn
+from nicegui_admin.contrib.sqlmodel.exceptions import NotSupportedColumn, InvalidModelError
 # from nicegui_admin.contrib.sqla.fields import FileField, ImageField# ToDo: check if needed
 from nicegui_admin.converters import BaseFieldConverter, converts
 from nicegui_admin.fields import (
@@ -79,7 +80,13 @@ class BaseSqlModelFieldConverter(BaseFieldConverter):
         return None
 
     def convert_fields_list(self, *, fields: Sequence[Any], model: type[Any], **kwargs: Any) -> Sequence[BaseField]:
-        mapper: Mapper = kwargs.get("mapper")
+        # get mapper
+        try:
+            mapper: Mapper = sqlalchemy_inspect(model)
+        except NoInspectionAvailable:
+            raise InvalidModelError(f"Class {model.__name__} is not a SQLAlchemy model.")
+
+        # convert fields
         converted_fields = []
         for field in fields:
             if isinstance(field, BaseField):

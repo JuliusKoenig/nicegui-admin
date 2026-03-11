@@ -3,8 +3,7 @@ from typing import Any, Sequence, Union, TYPE_CHECKING
 
 from nicegui import run
 from sqlmodel import SQLModel, select
-from sqlalchemy import String, and_, cast, func, inspect, or_, select
-from sqlalchemy.exc import NoInspectionAvailable
+from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.orm import InstrumentedAttribute, Mapper, RelationshipProperty
 from sqlalchemy.sql import Select
 
@@ -42,10 +41,6 @@ class SqlModelCrudView(BaseCrudView):
     converter: BaseSqlModelFieldConverter | Unset = field(default=Unset, repr=False)
 
     def __post_init__(self):
-        try:
-            mapper: Mapper = inspect(self.model)
-        except NoInspectionAvailable:
-            raise InvalidModelError(f"Class {self.model.__name__} is not a SQLAlchemy model.")
         converter: BaseSqlModelFieldConverter = Unset.resolve(self.converter, SqlModelFieldConverter())
         self.fields = converter.convert_fields_list(fields=self.fields, model=self.model, mapper=mapper)
 
