@@ -280,9 +280,9 @@ class BaseCrudView(BaseView):
 
         # setup event handlers
         table.on("row-click",
-                 lambda e: ui.navigate.to(f"{self.prefix}/{e.args[1]['_pk']}"))
+                 lambda e: ui.navigate.to(f"{self.prefix}/detail/{e.args[1]['_pk']}"))
 
-    @sub_page("/{pk}")
+    @sub_page("/detail/{pk}")
     async def ui_detail(self, pk: str) -> None:
         # get fields
         fields = await self.get_fields(mode="detail")
