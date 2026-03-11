@@ -161,7 +161,7 @@ class BaseField(DecoratedMethodClass):
     @render_method(mode="detail", element_name="label")
     async def detail_label(self,
                            **kwargs):
-        return ui.label(text=self.label)
+        return ui.label(text=self.label).classes("text-bold")
 
     @render_method(mode="detail", element_name="value")
     async def detail_value(self,
