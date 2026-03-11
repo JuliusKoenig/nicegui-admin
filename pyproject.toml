@@ -19,11 +19,10 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
 sqlmodel = [
     "sqlmodel>=0.0.37",
 ]
-[dependency-groups]
 dev = [
     "pywebview>=6.1",
     "starlette-admin>=0.16.0",

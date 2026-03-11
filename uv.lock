@@ -894,29 +894,24 @@ dependencies = [
     { name = "nicegui" },
 ]
 
-[package.optional-dependencies]
-sqlmodel = [
-    { name = "sqlmodel" },
-]
-
 [package.dev-dependencies]
 dev = [
     { name = "pywebview" },
     { name = "starlette-admin" },
 ]
+sqlmodel = [
+    { name = "sqlmodel" },
+]
 
 [package.metadata]
-requires-dist = [
-    { name = "nicegui", specifier = ">=3.8.0" },
-    { name = "sqlmodel", marker = "extra == 'sqlmodel'", specifier = ">=0.0.37" },
-]
-provides-extras = ["sqlmodel"]
+requires-dist = [{ name = "nicegui", specifier = ">=3.8.0" }]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "pywebview", specifier = ">=6.1" },
     { name = "starlette-admin", specifier = ">=0.16.0" },
 ]
+sqlmodel = [{ name = "sqlmodel", specifier = ">=0.0.37" }]
 
 [[package]]
 name = "orjson"
