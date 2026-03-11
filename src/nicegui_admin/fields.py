@@ -142,7 +142,7 @@ class BaseField(DecoratedMethodClass):
             return method
         return None
 
-    @render_method(mode="list", element_name="label") # ToDo: see PR: https://github.com/zauberzeug/nicegui/pull/5871
+    @render_method(mode="list", element_name="label")  # ToDo: see PR: https://github.com/zauberzeug/nicegui/pull/5871
     async def list_table_header_cell(self,
                                      table: ui.table,
                                      **kwargs) -> FieldRenderFunctionResult:
@@ -186,6 +186,26 @@ class BooleanField(BaseField):
     """
 
     cast_type = bool
+
+    async def list_table_body_cell(self,
+                                   table: ui.table,
+                                   **kwargs) -> FieldRenderFunctionResult:
+        with table.cell(column_name=self.name):
+            return ui.badge().props('''
+            :label="props.value ? 'true' : 'false'"
+            :color="props.value ? 'red' : 'green'"
+            ''')
+
+    async def detail_value(self,
+                           value: Any,
+                           **kwargs) -> FieldRenderFunctionResult:
+        return ui.badge(text="true" if value else "false",
+                        color="red" if value else "green")
+
+    async def form_value(self,
+                         value: Any,
+                         **kwargs) -> FieldRenderFunctionResult:
+        return ui.switch(value=value)
 
 
 @dataclass
