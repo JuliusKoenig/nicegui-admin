@@ -232,7 +232,14 @@ class BaseCrudView(BaseView):
         await self.create({
             "id": random.randint(1, 10000000),
             "name": "".join(random.choices(string.ascii_letters, k=10)),
-            "asd": "".join(random.choices(string.ascii_letters, k=10))
+            "boolean_attr1": True,
+            # "boolean_attr2": False,
+            "integer_attr1": 100,
+            # "integer_attr2": 0,
+            "float_attr1": 6.9,
+            # "float_attr2": 0.0,
+            "string_attr1": "test",
+            # "string_attr2": "",
         })
 
         # get fields
