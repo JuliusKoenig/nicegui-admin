@@ -309,3 +309,31 @@ class BaseCrudView(BaseView):
                     await value_render_method(value=data.get(field.name))
 
         ui.button("Back", on_click=lambda e: ui.navigate.back())
+        ui.button("Edit", on_click=lambda e: ui.navigate.to(f"{self.prefix}/edit/{pk}"))
+
+    @sub_page("/edit/{pk}")
+    async def ui_edit(self, pk: str) -> None:
+        # get fields
+        fields = await self.get_fields(mode="form")
+
+        # get data
+        data = (await self.serialize(await self.detail(pk=pk),
+                                     fields=fields))[0]
+        if data is None:
+            raise HTTPException(status_code=404, detail=f"{self.title} with pk '{pk}' not found!")
+
+        with ui.column().classes("w-full"):
+            for field in fields:
+                # render label
+                label_render_method = field.get_render_method(mode="form",
+                                                              element_name="label")
+                if label_render_method is not None:
+                    await label_render_method()
+
+                # render value
+                value_render_method = field.get_render_method(mode="form",
+                                                              element_name="value")
+                if value_render_method is not None:
+                    await value_render_method(value=data.get(field.name))
+
+        ui.button("Back", on_click=lambda e: ui.navigate.back())
