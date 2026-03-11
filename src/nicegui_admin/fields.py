@@ -220,7 +220,14 @@ class StringField(BaseField):
 
     maxlength: int | None = None
     minlength: int | None = None
-    placeholder: str | None = None
+    placeholder: str | None = "Empty"
+    # password:	whether to hide the input (default: False)
+    # password_toggle_button:
+    # whether to show a button to toggle the password visibility (default: False)
+    # prefix:	a prefix to prepend to the displayed value (added in version 3.5.0)
+    # suffix:	a suffix to append to the displayed value (added in version 3.5.0)
+    # autocomplete
+    # clearable
     cast_type = str
 
     async def serialize_none(self) -> str:
@@ -233,6 +240,13 @@ class StringField(BaseField):
         if isinstance(value, str) and value.strip() == "":
             return True
         return False
+
+    async def form_value(self,
+                         value: Any,
+                         **kwargs) -> FieldRenderFunctionResult:
+        return ui.input(value=value,
+                        label=self.help_text,
+                        placeholder=self.placeholder)
 
 
 # @dataclass
@@ -337,6 +351,10 @@ class BaseNumberField(BaseField):
     min: int | None = None
     step: int | None = None
     placeholder: str | None = None
+    # clearable
+    # prefix:	a prefix to prepend to the displayed value
+    # suffix:	a suffix to append to the displayed value
+    # format:	a string like "%.2f" to format the displayed value
 
 
 @dataclass
@@ -357,6 +375,7 @@ class DecimalField(BaseNumberField):
     Erroneous input is ignored and will not be accepted as a value.
     """
 
+    # precision:	the number of decimal places allowed (default: no limit, negative: decimal places before the dot)
     serialization_cast_type = str
     deserialization_cast_type = decimal.Decimal
     deserialization_mute_errors = decimal.InvalidOperation, ValueError

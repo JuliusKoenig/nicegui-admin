@@ -1,4 +1,6 @@
 from nicegui import ui
+from pydantic import BaseModel, Field as PydanticField
+from sqlalchemy import String, Column
 from sqlmodel import Field, SQLModel
 
 from nicegui_admin.contrib.sqlmodel.admin import SqlModelAdmin
@@ -11,11 +13,15 @@ class MyAdmin(SqlModelAdmin):
 
 admin = MyAdmin(debug=True)
 
+class Test(BaseModel):
+    asd: str = PydanticField(asd=123)
+
 
 class MyModel(SQLModel, table=True):
     id: int | None = Field(default=None,
                            primary_key=True,
-                           description="ID of the model")
+                           description="ID of the model",
+                           schema_extra={"json_schema_extra": {"help_text": "Help -> ID of the model"}})
     name: str = Field(primary_key=True,
                       description="Name of the model")
     boolean_attr1: bool = Field(description="Boolean attribute 1")
@@ -27,7 +33,7 @@ class MyModel(SQLModel, table=True):
     float_attr1: float = Field(description="Float attribute 1")
     float_attr2: float = Field(default=0.0,
                                description="Float attribute 2")
-    string_attr1: str = Field(description="String attribute 1")
+    string_attr1: str = Field(description="String attribute 1", max_length=10)
     string_attr2: str = Field(default="",
                               description="String attribute 2")
 

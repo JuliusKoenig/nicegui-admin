@@ -12,6 +12,8 @@ from sqlalchemy.orm import (
 )
 from sqlalchemy.exc import NoInspectionAvailable
 from sqlalchemy.sql.elements import ColumnElement, Label
+from sqlmodel.main import FieldInfo
+
 from nicegui_admin.contrib.sqlmodel.exceptions import NotSupportedColumn, InvalidModelError
 # from nicegui_admin.contrib.sqla.fields import FileField, ImageField# ToDo: check if needed
 from nicegui_admin.converters import BaseFieldConverter, converts
@@ -54,6 +56,8 @@ class BaseSqlModelFieldConverter(BaseFieldConverter):
                                  "your custom converter")
 
     def convert(self, *args: Any, **kwargs: Any) -> BaseField:
+        kwargs["model_field_info"] = kwargs["model"].model_fields[kwargs["column"].key]
+        kwargs["json_schema_extra"] = kwargs["model_field_info"].json_schema_extra or {}
         return self.get_converter(kwargs.get("_type"))(*args, **kwargs)
 
     def find_converter_for_col_type(self,
@@ -98,7 +102,8 @@ class BaseSqlModelFieldConverter(BaseFieldConverter):
                     attr = mapper.attrs.get(field)
                 if attr is None:
                     raise ValueError(f"Can't find column with key {field}")
-                # if isinstance(attr, RelationshipProperty):
+                if isinstance(attr, RelationshipProperty):
+                    raise NotImplemented(f"Relationship property {attr} is not supported") # ToDo: implement RelationshipProperty
                 #     identity = slugify_name(attr.entity.class_.__name__)
                 #     if attr.direction.name == "MANYTOONE" or (attr.direction.name == "ONETOMANY" and not attr.uselist):
                 #         converted_fields.append(HasOne(attr.key, identity=identity))
@@ -125,26 +130,52 @@ class BaseSqlModelFieldConverter(BaseFieldConverter):
 
 class SqlModelFieldConverter(BaseSqlModelFieldConverter):
     @classmethod
-    def _field_common(cls, *, name: str, column: ColumnElement, **kwargs: Any) -> Dict[str, Any]:
+    def _field_common(cls,
+                      *,
+                      name: str,
+                      column: ColumnElement,
+                      model_field_info: FieldInfo,
+                      json_schema_extra: Dict[str, Any],
+                      **kwargs: Any) -> Dict[str, Any]:
         if isinstance(column, Label):
+            raise NotImplemented() # ToDo: test Label
             return {"name": column.key,
                     "type": kwargs["_type"],
                     "exclude_from_edit": True,
                     "exclude_from_create": True}
+
+
+        label = json_schema_extra.get("title", model_field_info.title)
+        help_text = json_schema_extra.get("description", model_field_info.description)
+        if help_text is None:
+            help_text = getattr(column, "comment", None)
+        if help_text is None:
+            help_text = getattr(column, "doc", None)
+
         return {"name": name,
                 "type": kwargs["_type"],
-                "help_text": column.comment,
+                "label": label,
+                "help_text": help_text,
                 "required": (not column.nullable and not isinstance(column.type, (Boolean,)) and not column.default and not column.server_default)}
 
     @classmethod
-    def _string_common(cls, *, _type: Any, **kwargs: Any) -> Dict[str, Any]:
-        if isinstance(type, String) and isinstance(_type.length, int) and _type.length > 0:
+    def _string_common(cls,
+                       *,
+                       _type: Any,
+                       model_field_info: FieldInfo,
+                       json_schema_extra: Dict[str, Any],
+                       **kwargs: Any) -> Dict[str, Any]:
+        if isinstance(_type, String) and isinstance(_type.length, int) and _type.length > 0:
+            raise NotImplemented() # ToDo: test String with length
             return {"maxlength": _type.length}
         return {}
 
     @classmethod
-    def _file_common(cls, *, t: Any, **kwargs: Any) -> Dict[str, Any]:
-        return {"multiple": getattr(t, "multiple", False)}
+    def _file_common(cls,
+                     *,
+                     _type: Any,
+                     **kwargs: Any) -> Dict[str, Any]:
+        return {"multiple": getattr(_type, "multiple", False)}
 
     @converts("String",
               "sqlalchemy.sql.sqltypes.Uuid",
