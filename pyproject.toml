@@ -1,11 +1,13 @@
 [project]
 name = "nicegui-admin"
-dynamic = ["version"]
+version = "0.1.0.dev0"
 description = "A admin Panel besed on NiceGUI."
 authors = [
     { name = "Julius Koenig", email = "info@bastelquartier.de" },
 ]
-dependencies = ["nicegui>=3.7.1"]
+dependencies = [
+    "nicegui>=3.8.0",
+]
 requires-python = ">=3.10"
 readme = "README.md"
 keywords = ["nicegui", "gui", "tools", "niceguitools"]
@@ -23,20 +25,14 @@ sqlmodel = [
 ]
 [dependency-groups]
 dev = [
+    "pywebview>=6.1",
     "starlette-admin>=0.16.0",
 ]
 
 [build-system]
-requires = ["pdm-backend"]
-build-backend = "pdm.backend"
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
 
-[tool.pdm]
-distribution = true
-
-[tool.pdm.version]
-source = "file"
-path = "src/nicegui_admin/__init__.py"
-
-[tool.pdm.scripts]
-push-tags = { shell = "git push origin --tags" }
+[tool.uv]
+default-groups = "all"
 
