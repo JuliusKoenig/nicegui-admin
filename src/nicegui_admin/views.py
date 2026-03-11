@@ -89,7 +89,7 @@ class BaseCrudView(BaseView):
             #         f._name = f"{field._name}.{f.name}"  # type: ignore
             #     fringe.extend(field.fields)
             # name = field._name  # type: ignore
-            if field.name in self.pk_attrs and not self.exclude_pk:
+            if field.name in self.pk_attrs and self.exclude_pk:
                 if "list" not in field.exclude:
                     field.exclude.append("list")
                 if "detail" not in field.exclude:
