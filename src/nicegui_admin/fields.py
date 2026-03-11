@@ -4,10 +4,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from nicegui import ui
-from nicegui.element import Element
 
 from nicegui_admin.helpers import Unset, DecoratedMethodClass, decorate
-from nicegui_admin.types import AsyncFunction
+from nicegui_admin.types import FieldRenderFunction, FieldRenderFunctionResult
 
 logger = logging.getLogger(__name__)
 _type = type
@@ -134,7 +133,7 @@ class BaseField(DecoratedMethodClass):
 
     def get_render_method(self,
                           mode: str,
-                          element_name: str | None = None) -> AsyncFunction | None:
+                          element_name: str | None = None) -> FieldRenderFunction:
         for method, kwargs in self.__decorated_methods__.get("render_method", {}).items():
             if kwargs["mode"] != mode:
                 continue
@@ -143,13 +142,12 @@ class BaseField(DecoratedMethodClass):
             return method
         return None
 
-    # @render_method(mode="list", element_name="label") #ToDo: implement custom header cell rendering, with sorting, filtering, etc.
-    # async def list_table_header_cell(self,
-    #                                  table: ui.table,
-    #                                  **kwargs) -> Element:
-    #     table.header(column_name=self.key)
-    # ui.icon("thumb_up", size="1.5em")
-    # ui.html(content=self.label)
+    @render_method(mode="list", element_name="label") # ToDo: see PR: https://github.com/zauberzeug/nicegui/pull/5871
+    async def list_table_header_cell(self,
+                                     table: ui.table,
+                                     **kwargs) -> FieldRenderFunctionResult:
+        with table.header(column_name=self.key):
+            return ui.label(text=self.label).classes("text-bold")
 
     @render_method(mode="list", element_name="value")
     async def list_table_body_cell(self,
