@@ -111,12 +111,12 @@ class BaseSqlModelFieldConverter(BaseFieldConverter):
                     is_inherited_pk = mapper.inherits is not None and any(col.primary_key for col in attr.columns)
                     if is_inherited_pk:
                         column = attr.columns[0]
-                        converted_fields.append(self.convert(name=attr.key, type=column.type, column=column))
+                        converted_fields.append(self.convert(name=attr.key, _type=column.type, model=model, column=column))
                     else:
                         assert (len(attr.columns) == 1), "Multiple-column properties are not supported"
                         column = attr.columns[0]
                         if not column.foreign_keys:
-                            converted_field = self.convert(name=attr.key, _type=column.type, column=column)
+                            converted_field = self.convert(name=attr.key, _type=column.type, model=model, column=column)
                             converted_fields.append(converted_field)
                 else:
                     raise NotSupportedColumn(f"Attribute {attr} of type {type(attr)} is not supported")
