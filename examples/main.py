@@ -13,16 +13,23 @@ admin = MyAdmin(debug=True)
 
 
 class MyModel(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    name: str = Field(primary_key=True)
-    boolean_attr1: bool = Field()
-    boolean_attr2: bool = Field(default=False)
-    integer_attr1: int = Field()
-    integer_attr2: int = Field(default=0)
-    float_attr1: float = Field()
-    float_attr2: float = Field(default=0.0)
-    string_attr1: str = Field()
-    string_attr2: str = Field(default="")
+    id: int | None = Field(default=None,
+                           primary_key=True,
+                           description="ID of the model")
+    name: str = Field(primary_key=True,
+                      description="Name of the model")
+    boolean_attr1: bool = Field(description="Boolean attribute 1")
+    boolean_attr2: bool = Field(default=False,
+                                description="Boolean attribute 2")
+    integer_attr1: int = Field(description="Integer attribute 1")
+    integer_attr2: int = Field(default=0,
+                               description="Integer attribute 2")
+    float_attr1: float = Field(description="Float attribute 1")
+    float_attr2: float = Field(default=0.0,
+                               description="Float attribute 2")
+    string_attr1: str = Field(description="String attribute 1")
+    string_attr2: str = Field(default="",
+                              description="String attribute 2")
 
 
 admin.add_view(SqlModelCrudView(title="Test",
