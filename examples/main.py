@@ -1,8 +1,4 @@
-import json
-import random
-import string
-
-from nicegui import ui, app
+from nicegui import ui
 from sqlmodel import Field, SQLModel
 
 from nicegui_admin.contrib.sqlmodel.admin import SqlModelAdmin
@@ -13,50 +9,35 @@ class MyAdmin(SqlModelAdmin):
     pass
 
 
-admin = MyAdmin(debug=True, prefix="/admin")
+admin = MyAdmin(debug=True)
 
 
-# class MyModel1(SQLModel, table=True):
-#     id: int | None = Field(default=None, primary_key=True)
-#     qwe: str = Field(index=True)
-#
-#
-# @admin.view(model=MyModel1, fields=["id", "qwe"])
-# class MyView1(SqlModelCrudView):
-#     ...
-
-
-class MyModel2(SQLModel, table=True):
+class MyModel(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
     name: str = Field(primary_key=True)
-    asd: str = Field(index=True)
+    boolean_attr1: bool = Field()
+    boolean_attr2: bool = Field(default=False)
+    integer_attr1: int = Field()
+    integer_attr2: int = Field(default=0)
+    float_attr1: float = Field()
+    float_attr2: float = Field(default=0.0)
+    string_attr1: str = Field()
+    string_attr2: str = Field(default="")
 
 
-test2_view = SqlModelCrudView(model=MyModel2, fields=["id", "name", "asd"])
-admin.add_view(test2_view)
-
-
-# @admin.sub_page("/")
-# def home_page():
-#     ui.label("Home")
-#
-#
-# @admin.sub_page("/test")
-# def test(qwe: str = None):
-#     ui.label("Test")
-#     ui.label(f"qwe: {qwe}")
-#
-#
-# @admin.sub_page("/sync_error")
-# def sync_error_page():
-#     raise RuntimeError("Synchronous error")
-#
-#
-# @admin.sub_page("/async_error", title="Async Error")
-# async def async_error_page():
-#     raise RuntimeError("Asynchronous error")
-
-
+admin.add_view(SqlModelCrudView(title="Test",
+                                path="/test",
+                                model=MyModel,
+                                fields=["id",
+                                        "name",
+                                        "boolean_attr1",
+                                        "boolean_attr2",
+                                        "integer_attr1",
+                                        "integer_attr2",
+                                        "float_attr1",
+                                        "float_attr2",
+                                        "string_attr1",
+                                        "string_attr2"]))
 
 # app.include_router(admin) # ToDo: check if it possible to act as a API Router
 
