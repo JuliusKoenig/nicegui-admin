@@ -172,12 +172,13 @@ class BaseField(DecoratedMethodClass):
     @render_method(mode="form", element_name="label")
     async def form_label(self,
                          **kwargs):
-        ...
+        return ui.label(text=self.label).classes("text-bold")
 
     @render_method(mode="form", element_name="value")
     async def form_value(self,
+                         value: Any,
                          **kwargs):
-        ...
+        return ui.label(text=value)
 
 
 @dataclass
