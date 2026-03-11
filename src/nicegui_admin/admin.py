@@ -13,14 +13,20 @@ class BaseAdmin(SubPageApp):
     """
 
     def __init__(self,
-                 title: str = Unset,
-                 **kwargs):
+                 debug: bool | Unset = Unset,
+                 prefix: str | Unset = Unset,
+                 title: str | Unset = Unset):
         """
+        :param debug: Enable debug mode. If True, error pages will display detailed error information and stack traces.
+        :param prefix: The path prefix for this SubPageApp. Should start with '/' and should not end with '/'.
         :param title: Admin title.
-        :param kwargs: Other keyword arguments to be passed to the APIRouter constructor.
         """
 
-        SubPageApp.__init__(self, **kwargs)
+        prefix = Unset.resolve(prefix, "/admin")
+
+        SubPageApp.__init__(self,
+                            debug=debug,
+                            prefix=prefix)
 
         self.title: str = Unset.resolve(title, "Admin")
         self._views: list[BaseView] = []

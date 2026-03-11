@@ -14,16 +14,20 @@ class SqlModelAdmin(BaseAdmin):
     """
 
     def __init__(self,
-                 title: str = Unset,
-                 engine: Engine | str = Unset,
-                 **kwargs):
+                 debug: bool | Unset = Unset,
+                 prefix: str | Unset = Unset,
+                 title: str | Unset = Unset,
+                 engine: Engine | str = Unset):
+
         """
         :param title: Admin title.
-        :param kwargs: Other keyword arguments to be passed to the APIRouter constructor.
+        :param debug: Enable debug mode. If True, error pages will display detailed error information and stack traces.
+        :param prefix: The path prefix for this SubPageApp. Should start with '/' and should not end with '/'.
         """
 
-        super().__init__(title=title,
-                         **kwargs)
+        super().__init__(debug=debug,
+                         prefix=prefix,
+                         title=title)
 
         engine = Unset.resolve(engine, "sqlite:///database.db")
         if type(engine) is str:

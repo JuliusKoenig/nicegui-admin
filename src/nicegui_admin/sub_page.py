@@ -49,7 +49,7 @@ class SubPageRouter(DecoratedMethodClass):
 
         def __init__(self, sub_page_router: "SubPageRouter") -> None:
             self.sub_page_router: "SubPageRouter" = sub_page_router
-            super().__init__(show_404=self.sub_page_router.show_404)
+            super().__init__(show_404=True)
 
         @property
         def _routes(self) -> dict[str, SyncOrAsyncFunction]:
@@ -174,13 +174,23 @@ class SubPageRouter(DecoratedMethodClass):
             self.has_404 = False
 
     def __init__(self,
-                 prefix: str = "",
-                 show_404: bool = True) -> None:
+                 prefix: str | Unset = Unset) -> None:
+        """
+        :param prefix: The path prefix for this SubPageApp. Should start with '/' and should not end with '/'.
+        """
+
         self._parent_sub_page_router: Optional[SubPageRouter] = None
         self._sub_page_router: list[SubPageRouter] = []
+
+        prefix = Unset.resolve(prefix, "")
+
+        # validate prefix
+        if prefix:
+            assert prefix.startswith("/"), "A path prefix must start with '/'"
+            assert not prefix.endswith("/"), (
+                "A path prefix must not end with '/', as the routes will start with '/'"
+            )
         self._prefix = prefix
-        self.prefix = prefix  # validate prefix
-        self.show_404: bool = show_404
 
     @property
     def sub_page_app(self) -> "SubPageApp":
@@ -458,12 +468,27 @@ class SubPageApp(SubPageRouter):
     """
 
     def __init__(self,
-                 debug: bool = False,
-                 prefix: str = ""):
+                 debug: bool | Unset = Unset,
+                 prefix: str | Unset = Unset):
+        """
+        :param debug: Enable debug mode. If True, error pages will display detailed error information and stack traces.
+        :param prefix: The path prefix for this SubPageApp. Should start with '/' and should not end with '/'.
+        """
+
         SubPageRouter.__init__(self,
                                prefix=prefix)
 
-        self.debug: bool = debug
+        self.debug: bool = Unset.resolve(debug, False)
 
-        ui.page("/{_:path}")(self.root)
+        ui.page(f"{self.prefix}/{{_:path}}")(self.root)
+
+    @property
+    def prefix(self) -> str:
+        """
+        Overwritten to make prefix read-only in SubPageApp
+
+        :return: The path prefix for this SubPageApp
+        """
+
+        return super().prefix
 
