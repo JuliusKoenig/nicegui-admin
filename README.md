@@ -64,7 +64,9 @@ _Very early stage of development, but you can already check out the code and giv
   - [x] support for custom routes in admin panel
 - [ ] Implement all starlette-admin field types
 - [ ] Implement Testsystem and cover existing code
-- [ ] Create Docs page and complete README
+- [ ] Documentation
+  - [ ] complete README
+  - [ ] Create Docs page(mkdocs)
 - [ ] User Authentication, Authorization and Management
   - [ ] User Authentication
     - [ ] login/logout
