@@ -155,7 +155,7 @@ class BaseField(DecoratedMethodClass):
     async def list_table_body_cell(self,
                                    table: ui.table,
                                    **kwargs) -> Element:
-        with table.cell(column_name=self.key):
+        with table.cell(column_name=self.name):
             return ui.label().props(":innerHTML=\"props.row." + self.key + "\"")
 
     @render_method(mode="detail", element_name="label")
