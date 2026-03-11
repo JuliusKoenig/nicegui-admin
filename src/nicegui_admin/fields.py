@@ -154,30 +154,30 @@ class BaseField(DecoratedMethodClass):
     @render_method(mode="list", element_name="value")
     async def list_table_body_cell(self,
                                    table: ui.table,
-                                   **kwargs) -> Element:
+                                   **kwargs) -> FieldRenderFunctionResult:
         with table.cell(column_name=self.name):
             return ui.label().props(":innerHTML=\"props.row." + self.key + "\"")
 
     @render_method(mode="detail", element_name="label")
     async def detail_label(self,
-                           **kwargs):
+                           **kwargs) -> FieldRenderFunctionResult:
         return ui.label(text=self.label).classes("text-bold")
 
     @render_method(mode="detail", element_name="value")
     async def detail_value(self,
                            value: Any,
-                           **kwargs):
+                           **kwargs) -> FieldRenderFunctionResult:
         return ui.label(text=value)
 
     @render_method(mode="form", element_name="label")
     async def form_label(self,
-                         **kwargs):
+                         **kwargs) -> FieldRenderFunctionResult:
         return ui.label(text=self.label).classes("text-bold")
 
     @render_method(mode="form", element_name="value")
     async def form_value(self,
                          value: Any,
-                         **kwargs):
+                         **kwargs) -> FieldRenderFunctionResult:
         return ui.label(text=value)
 
 
