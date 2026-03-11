@@ -4,10 +4,9 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from nicegui import ui
-from nicegui.element import Element
 
 from nicegui_admin.helpers import Unset, DecoratedMethodClass, decorate
-from nicegui_admin.types import AsyncFunction
+from nicegui_admin.types import FieldRenderFunction, FieldRenderFunctionResult
 
 logger = logging.getLogger(__name__)
 _type = type
@@ -134,7 +133,7 @@ class BaseField(DecoratedMethodClass):
 
     def get_render_method(self,
                           mode: str,
-                          element_name: str | None = None) -> AsyncFunction | None:
+                          element_name: str | None = None) -> FieldRenderFunction:
         for method, kwargs in self.__decorated_methods__.get("render_method", {}).items():
             if kwargs["mode"] != mode:
                 continue
@@ -143,41 +142,40 @@ class BaseField(DecoratedMethodClass):
             return method
         return None
 
-    # @render_method(mode="list", element_name="label") #ToDo: implement custom header cell rendering, with sorting, filtering, etc.
-    # async def list_table_header_cell(self,
-    #                                  table: ui.table,
-    #                                  **kwargs) -> Element:
-    #     table.header(column_name=self.key)
-    # ui.icon("thumb_up", size="1.5em")
-    # ui.html(content=self.label)
+    @render_method(mode="list", element_name="label")  # ToDo: see PR: https://github.com/zauberzeug/nicegui/pull/5871
+    async def list_table_header_cell(self,
+                                     table: ui.table,
+                                     **kwargs) -> FieldRenderFunctionResult:
+        with table.header(column_name=self.name):
+            return ui.label(text=self.label).classes("text-bold")
 
     @render_method(mode="list", element_name="value")
     async def list_table_body_cell(self,
                                    table: ui.table,
-                                   **kwargs) -> Element:
+                                   **kwargs) -> FieldRenderFunctionResult:
         with table.cell(column_name=self.name):
-            return ui.label().props(":innerHTML=\"props.row." + self.key + "\"")
+            return ui.label().props(":innerHTML=\"props.row." + self.name + "\"")
 
     @render_method(mode="detail", element_name="label")
     async def detail_label(self,
-                           **kwargs):
+                           **kwargs) -> FieldRenderFunctionResult:
         return ui.label(text=self.label).classes("text-bold")
 
     @render_method(mode="detail", element_name="value")
     async def detail_value(self,
                            value: Any,
-                           **kwargs):
+                           **kwargs) -> FieldRenderFunctionResult:
         return ui.label(text=value)
 
     @render_method(mode="form", element_name="label")
     async def form_label(self,
-                         **kwargs):
+                         **kwargs) -> FieldRenderFunctionResult:
         return ui.label(text=self.label).classes("text-bold")
 
     @render_method(mode="form", element_name="value")
     async def form_value(self,
                          value: Any,
-                         **kwargs):
+                         **kwargs) -> FieldRenderFunctionResult:
         return ui.label(text=value)
 
 
@@ -188,6 +186,26 @@ class BooleanField(BaseField):
     """
 
     cast_type = bool
+
+    async def list_table_body_cell(self,
+                                   table: ui.table,
+                                   **kwargs) -> FieldRenderFunctionResult:
+        with table.cell(column_name=self.name):
+            return ui.badge().props('''
+            :label="props.value ? 'true' : 'false'"
+            :color="props.value ? 'red' : 'green'"
+            ''')
+
+    async def detail_value(self,
+                           value: Any,
+                           **kwargs) -> FieldRenderFunctionResult:
+        return ui.badge(text="true" if value else "false",
+                        color="red" if value else "green")
+
+    async def form_value(self,
+                         value: Any,
+                         **kwargs) -> FieldRenderFunctionResult:
+        return ui.switch(value=value)
 
 
 @dataclass
@@ -202,7 +220,14 @@ class StringField(BaseField):
 
     maxlength: int | None = None
     minlength: int | None = None
-    placeholder: str | None = None
+    placeholder: str | None = "Empty"
+    # password:	whether to hide the input (default: False)
+    # password_toggle_button:
+    # whether to show a button to toggle the password visibility (default: False)
+    # prefix:	a prefix to prepend to the displayed value (added in version 3.5.0)
+    # suffix:	a suffix to append to the displayed value (added in version 3.5.0)
+    # autocomplete
+    # clearable
     cast_type = str
 
     async def serialize_none(self) -> str:
@@ -215,6 +240,13 @@ class StringField(BaseField):
         if isinstance(value, str) and value.strip() == "":
             return True
         return False
+
+    async def form_value(self,
+                         value: Any,
+                         **kwargs) -> FieldRenderFunctionResult:
+        return ui.input(value=value,
+                        label=self.help_text,
+                        placeholder=self.placeholder)
 
 
 # @dataclass
@@ -319,6 +351,10 @@ class BaseNumberField(BaseField):
     min: int | None = None
     step: int | None = None
     placeholder: str | None = None
+    # clearable
+    # prefix:	a prefix to prepend to the displayed value
+    # suffix:	a suffix to append to the displayed value
+    # format:	a string like "%.2f" to format the displayed value
 
 
 @dataclass
@@ -339,6 +375,7 @@ class DecimalField(BaseNumberField):
     Erroneous input is ignored and will not be accepted as a value.
     """
 
+    # precision:	the number of decimal places allowed (default: no limit, negative: decimal places before the dot)
     serialization_cast_type = str
     deserialization_cast_type = decimal.Decimal
     deserialization_mute_errors = decimal.InvalidOperation, ValueError
