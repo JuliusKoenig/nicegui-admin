@@ -154,7 +154,7 @@ class SqlModelCrudView(BaseCrudView):
         return select(self.model)
 
     async def detail(self,
-                     pk: Any) -> dict[str, Any] | None:
+                     pk: str) -> dict[str, Any] | None:
         with self.admin.session() as session:
             if isinstance(self._pk_column, tuple):
                 """
@@ -199,12 +199,12 @@ class SqlModelCrudView(BaseCrudView):
             return objs if len(objs) > 1 else objs[0]
 
     async def edit(self,
-                   *pks: Any,
+                   *pks: str,
                    data: dict[str, Any]) -> dict[str, Any] | Sequence[dict[str, Any]]:
         raise NotImplementedError()
 
     async def delete(self,
-                     *pks: Any) -> bool | Sequence[bool]:
+                     *pks: str) -> bool | Sequence[bool]:
         raise NotImplementedError()
 
     # def search_query(self, term: str) -> Any:

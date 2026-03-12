@@ -150,40 +150,6 @@ class BaseCrudView(BaseView):
             raise AttributeError("pk_field is not defined")
         return self.pk_field.name.split(",")
 
-    @abstractmethod
-    async def count(self,
-                    where: WHERE = None) -> int:
-        raise NotImplementedError()
-
-    @abstractmethod
-    async def list(self,
-                   offset: int = 0,
-                   limit: int = 100,
-                   where: WHERE = None,
-                   order_by: ORDER_BY = None) -> Sequence[dict[str, Any]]:
-        raise NotImplementedError()
-
-    @wrapped_method
-    async def detail(self,
-                     pk: Any) -> dict[str, Any] | None:
-        raise NotImplementedError()
-
-    @abstractmethod
-    async def create(self,
-                     *data: dict[str, Any]) -> dict[str, Any] | Sequence[dict[str, Any]]:
-        raise NotImplementedError()
-
-    @abstractmethod
-    async def edit(self,
-                   *pks: Any,
-                   data: dict[str, Any]) -> dict[str, Any] | Sequence[dict[str, Any]]:
-        raise NotImplementedError()
-
-    @abstractmethod
-    async def delete(self,
-                     *pks: Any) -> bool | Sequence[bool]:
-        raise NotImplementedError()
-
     async def serialize(self,
                         *data: dict[str, Any],
                         fields: Sequence[BaseField]) -> _list[dict[str, Any]]:
@@ -214,6 +180,40 @@ class BaseCrudView(BaseView):
                 await field.deserialize(data=data_set)
             deserialized_data.append(deserialized_data_set)
         return deserialized_data
+
+    @abstractmethod
+    async def count(self,
+                    where: WHERE = None) -> int:
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def list(self,
+                   offset: int = 0,
+                   limit: int = 100,
+                   where: WHERE = None,
+                   order_by: ORDER_BY = None) -> Sequence[dict[str, Any]]:
+        raise NotImplementedError()
+
+    @wrapped_method
+    async def detail(self,
+                     pk: str) -> dict[str, Any] | None:
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def create(self,
+                     *data: dict[str, Any]) -> dict[str, Any] | Sequence[dict[str, Any]]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def edit(self,
+                   *pks: str,
+                   data: dict[str, Any]) -> dict[str, Any] | Sequence[dict[str, Any]]:
+        raise NotImplementedError()
+
+    @abstractmethod
+    async def delete(self,
+                     *pks: str) -> bool | Sequence[bool]:
+        raise NotImplementedError()
 
     async def get_fields(self, mode: str) -> Sequence[BaseField]:
         result = []
