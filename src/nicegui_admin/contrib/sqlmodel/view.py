@@ -63,7 +63,7 @@ class SqlModelCrudView(BaseCrudView):
                 self.pk_field = next(f for f in self.fields if f.name == _pk_attrs[0])
             except StopIteration:
                 # If the primary key is not among the fields, treat its value as a string
-                self.pk_field = StringField(_pk_attrs[0], type=self._pk_column.type) # ToDo: type is needed
+                self.pk_field = StringField(_pk_attrs[0], type=self._pk_column.type)  # ToDo: type is needed
         else:
             self._pk_column = tuple(getattr(self.model, attr) for attr in _pk_attrs)
             self._pk_coerce = tuple(extract_column_python_type(c) for c in self._pk_column)
@@ -74,48 +74,95 @@ class SqlModelCrudView(BaseCrudView):
     def admin(self) -> Union["SqlModelAdmin", Any, None]:
         return super().admin
 
-    def count_query(self) -> Select:
+    async def count_query(self,
+                          where: WHERE = None) -> Select:
         """
         Return a Select expression which is used for count
 
+        :param where: WHERE clause to filter the count query. It can be either a dict or a string representing the full text search term.
         :return: SQLAlchemy Select expression
         """
 
-        return select(func.count()).select_from(self.model)
+        # select
+        statement = select(func.count()).select_from(self.model)
+
+        # where
+        if where is not None:
+            if isinstance(where, dict):
+                where = build_query(where, self.model)
+            else:
+                where = await self.build_full_text_search_query(where, self.model)
+            statement = statement.where(where)
+
+        return statement
 
     async def count(self,
                     where: WHERE = None) -> int:
         with self.admin.session() as session:
-            statement = self.count_query()
-            if where is not None:
-                if isinstance(where, dict):
-                    where = build_query(where, self.model)
-                else:
-                    where = await self.build_full_text_search_query(where, self.model)
-                statement = statement.where(where)
-            return await run.io_bound(session.execute, statement).scalar_one()
+            # build query
+            statement = await self.count_query(where)
 
-    def list_query(self) -> Select:
+            # execute query
+            result = await run.io_bound(session.execute, statement)
+
+            # process result
+            result = result.scalar_one()
+
+            return result
+
+    async def list_query(self,
+                         offset: int = 0,
+                         limit: int = 100,
+                         where: WHERE = None,
+                         order_by: ORDER_BY = None) -> Select:
         """
         Return a Select expression which is used for list
 
+        :param offset: Offset for pagination
+        :param limit: Limit for pagination
+        :param where: WHERE clause to filter the list query. It can be either a dict or a string representing the full text search term.
+        :param order_by: ORDER BY clause to sort the list query. It should be a list of strings in the format "attr_name ASC|DESC".
         :return: SQLAlchemy Select expression
         """
 
-        return select(self.model)
+        # select
+        statement = select(self.model)
 
-    def list_order_clauses(self, order_list: list[str], stmt: Select) -> Select:
-        for value in order_list:
+        # limit
+        if limit > 0:
+            statement = statement.limit(limit)
+
+        # offset
+        if offset > 0:
+            statement = statement.offset(offset)
+
+        # where
+        if where is not None:
+            if isinstance(where, dict):
+                where = build_query(where, self.model)
+            else:
+                where = await self.build_full_text_search_query(where, self.model)
+            statement = statement.where(where)
+
+        # order_by
+        order_by = order_by or []
+        for value in order_by:
             attr_key, order = value.strip().split(maxsplit=1)
             model_attr = getattr(self.model, attr_key, None)
             if model_attr is not None and isinstance(model_attr.property, RelationshipProperty):
-                stmt = stmt.outerjoin(model_attr)
+                statement = statement.outerjoin(model_attr)
             sorting_attr = self.sortable_field_mapping.get(attr_key, model_attr)
             if order.lower() == "desc":
-                stmt = stmt.order_by(not_none(sorting_attr).desc())
+                statement = statement.order_by(not_none(sorting_attr).desc())
             else:
-                stmt = stmt.order_by(sorting_attr)
-        return stmt
+                statement = statement.order_by(sorting_attr)
+
+        # join
+        # for field in self.get_fields_list(RequestAction.LIST): # ToDo: check if needed
+        #     if isinstance(field, RelationField):
+        #         statement = statement.options(joinedload(getattr(self.model, field.name)))
+
+        return statement
 
     async def list(self,
                    offset: int = 0,
@@ -123,67 +170,82 @@ class SqlModelCrudView(BaseCrudView):
                    where: WHERE = None,
                    order_by: ORDER_BY = None) -> Sequence[dict[str, Any]]:
         with self.admin.session() as session:
-            statement = self.list_query()
-            if limit > 0:
-                statement = statement.limit(limit)
-            if offset > 0:
-                statement = statement.offset(offset)
-            if where is not None:
-                if isinstance(where, dict):
-                    where = build_query(where, self.model)
-                else:
-                    where = await self.build_full_text_search_query(where, self.model)
-                statement = statement.where(where)
-            statement = self.list_order_clauses(order_by or [], statement)
-            # for field in self.get_fields_list(RequestAction.LIST): # ToDo: check if needed
-            #     if isinstance(field, RelationField):
-            #         statement = statement.options(joinedload(getattr(self.model, field.name)))
+            # build query
+            statement = await self.list_query()
+
+            # execute query
             result = await run.io_bound(session.execute, statement)
+
+            # process result
+            result = result.scalars().unique().all()
+
+            # serialize result
             obj_dicts = []
-            for obj in result.scalars().unique().all():
-                obj_dicts.append(obj.model_dump())
+            for obj in result:
+                obj_dict = obj.model_dump()
+                obj_dicts.append(obj_dict)
+
             return obj_dicts
 
-    def detail_query(self) -> Select:
+    async def detail_query(self,
+                           pk: str) -> Select:
         """
         Return a Select expression which is used for details
 
+        :param pk: Primary key of the detail query
         :return: SQLAlchemy Select expression
         """
 
-        return select(self.model)
+        # select
+        statement = select(self.model)
+
+        # where
+        if isinstance(self._pk_column, tuple):
+            """
+            For composite primary keys, the pk parameter is a comma-separated string
+            representing the values of each primary key attribute.
+
+            For example, if the model has two primary keys (id1, id2):
+            - the `pk` will be: "val1,val2"
+            - the generated query: (id1 == val1 AND id2 == val2)
+            """
+            assert isinstance(self._pk_coerce, tuple)
+            clauses = []
+            for _pk_col, _coerce, _pk in zip(self._pk_column, self._pk_coerce, iterdecode(pk)):
+                if _coerce is not bool:
+                    clauses.append(_pk_col == _coerce(_pk))
+                else:
+                    clauses.append(_pk_col == (_pk == "True"))
+            statement = statement.where(and_(*clauses))
+        else:
+            assert isinstance(self._pk_coerce, type)
+            statement = statement.where(self._pk_column == self._pk_coerce(pk))
+
+        # join
+        # for field in self.get_fields_list(request, request.state.action): ToDo: check if needed
+        #     if isinstance(field, RelationField):
+        #         statement = statement.options(joinedload(getattr(self.model, field.name)))
+
+        return statement
 
     async def detail(self,
                      pk: str) -> dict[str, Any] | None:
         with self.admin.session() as session:
-            if isinstance(self._pk_column, tuple):
-                """
-                For composite primary keys, the pk parameter is a comma-separated string
-                representing the values of each primary key attribute.
-    
-                For example, if the model has two primary keys (id1, id2):
-                - the `pk` will be: "val1,val2"
-                - the generated query: (id1 == val1 AND id2 == val2)
-                """
-                assert isinstance(self._pk_coerce, tuple)
-                clauses = []
-                for _pk_col, _coerce, _pk in zip(self._pk_column, self._pk_coerce, iterdecode(pk)):
-                    if _coerce is not bool:
-                        clauses.append(_pk_col == _coerce(_pk))
-                    else:
-                        clauses.append(_pk_col == (_pk == "True"))
-                clause = and_(*clauses)
-            else:
-                assert isinstance(self._pk_coerce, type)
-                clause = self._pk_column == self._pk_coerce(pk)
-            statement = self.detail_query().where(clause)
-            # for field in self.get_fields_list(request, request.state.action): ToDo: check if needed
-            #     if isinstance(field, RelationField):
-            #         statement = statement.options(joinedload(getattr(self.model, field.name)))
+            # build query
+            statement = await self.detail_query(pk=pk)
 
+            # execute query
             result = await run.io_bound(session.execute, statement)
-            obj = result.scalars().unique().one_or_none()
-            return obj.model_dump() if obj else None
+
+            # process result
+            result = result.scalars().unique().one_or_none()
+
+            # serialize result
+            obj = None
+            if result:
+                obj = result.model_dump()
+
+            return obj
 
     async def create(self,
                      *data: dict[str, Any]) -> dict[str, Any] | Sequence[dict[str, Any]]:
