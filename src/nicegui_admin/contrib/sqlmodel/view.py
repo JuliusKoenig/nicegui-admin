@@ -42,7 +42,8 @@ class SqlModelCrudView(BaseCrudView):
 
     def __post_init__(self):
         converter: BaseSqlModelFieldConverter = Unset.resolve(self.converter, SqlModelFieldConverter())
-        self.fields = converter.convert_fields_list(fields=self.fields, model=self.model)
+        self.fields = converter.convert_fields_list(fields=self.fields,
+                                                    model=self.model)
 
         # Detect the primary key attribute(s) of the model
         _pk_attrs = []

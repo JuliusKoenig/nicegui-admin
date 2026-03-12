@@ -21,6 +21,7 @@ classifiers = [
 
 [dependency-groups]
 sqlmodel = [
+    "sqlalchemy-utils>=0.42.1",
     "sqlmodel>=0.0.37",
 ]
 dev = [

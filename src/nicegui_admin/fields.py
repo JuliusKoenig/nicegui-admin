@@ -1,7 +1,7 @@
 import decimal
 import logging
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Optional
 
 from nicegui import ui
 
@@ -133,7 +133,7 @@ class BaseField(DecoratedMethodClass):
 
     def get_render_method(self,
                           mode: str,
-                          element_name: str | None = None) -> FieldRenderFunction:
+                          element_name: str | None = None) -> Optional[FieldRenderFunction]:
         for method, kwargs in self.__decorated_methods__.get("render_method", {}).items():
             if kwargs["mode"] != mode:
                 continue
@@ -185,7 +185,7 @@ class BooleanField(BaseField):
     This field displays the `true/false` value of a boolean property.
     """
 
-    cast_type = bool
+    cast_type: _type | None = field(default=bool)
 
     async def list_table_body_cell(self,
                                    table: ui.table,
@@ -194,13 +194,13 @@ class BooleanField(BaseField):
             return ui.badge().props('''
             :label="props.value ? 'true' : 'false'"
             :color="props.value ? 'red' : 'green'"
-            ''')
+            ''').classes("text-bold")
 
     async def detail_value(self,
                            value: Any,
                            **kwargs) -> FieldRenderFunctionResult:
         return ui.badge(text="true" if value else "false",
-                        color="red" if value else "green")
+                        color="red" if value else "green").classes("text-bold")
 
     async def form_value(self,
                          value: Any,
@@ -228,7 +228,7 @@ class StringField(BaseField):
     # suffix:	a suffix to append to the displayed value (added in version 3.5.0)
     # autocomplete
     # clearable
-    cast_type = str
+    cast_type: _type | None = field(default=str)
 
     async def serialize_none(self) -> str:
         return ""
@@ -364,8 +364,8 @@ class IntegerField(BaseNumberField):
     Erroneous input is ignored and will not be accepted as a value.
     """
 
-    cast_type = int
-    deserialization_mute_errors = ValueError, TypeError
+    cast_type: _type | None = field(default=int)
+    deserialization_mute_errors: Exception | tuple[Exception] = field(default=(ValueError, TypeError))
 
 
 @dataclass
@@ -376,9 +376,9 @@ class DecimalField(BaseNumberField):
     """
 
     # precision:	the number of decimal places allowed (default: no limit, negative: decimal places before the dot)
-    serialization_cast_type = str
-    deserialization_cast_type = decimal.Decimal
-    deserialization_mute_errors = decimal.InvalidOperation, ValueError
+    serialization_cast_type: _type | Unset | None = field(default=float)
+    deserialization_cast_type: _type | Unset | None = field(default=decimal.Decimal)
+    deserialization_mute_errors: Exception | tuple[Exception] = field(default=(decimal.InvalidOperation, ValueError))
 
 
 @dataclass
@@ -388,8 +388,18 @@ class FloatField(StringField):
      Erroneous input is ignored and will not be accepted as a value.
     """
 
-    cast_type = int
-    deserialization_mute_errors = ValueError
+    cast_type: _type | None = field(default=float)
+    deserialization_mute_errors: Exception | tuple[Exception] = field(default=ValueError)
+
+@dataclass
+class IPAddressField(StringField):
+    """
+    This field is used to represent the value as an IP address (both IPv4 and IPv6).
+    It validates the input to ensure it is a valid IP address and provides appropriate formatting for display.
+    """
+
+    serialization_cast_type: _type | Unset | None = field(default=str)
+    deserialization_cast_type: _type | Unset | None = field(default=str) # ToDo: consider using ipaddress.IPv4Address and ipaddress.IPv6Address
 
 # @dataclass
 # class TagsField(BaseField):
@@ -1290,4 +1300,3 @@ class FloatField(StringField):
 #
 #     def additional_js_links(self, request: Request, action: RequestAction) -> List[str]:
 #         return self.field.additional_js_links(request, action)
-#

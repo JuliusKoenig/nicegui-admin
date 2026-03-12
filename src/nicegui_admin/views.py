@@ -1,6 +1,8 @@
 import random
 import string
+import uuid
 from dataclasses import dataclass, field as _field
+from ipaddress import IPv4Address, IPv6Address
 from typing import Union, TYPE_CHECKING
 from abc import abstractmethod
 from typing import Any, Sequence
@@ -239,6 +241,12 @@ class BaseCrudView(BaseView):
             # "float_attr2": 0.0,
             "string_attr1": "test",
             # "string_attr2": "",
+            "uuid_attr1": uuid.uuid4(),
+            # "uuid_attr2": None
+            "ip_v4_address_attr1": IPv4Address("1.2.3.4"),
+            # "ip_v4_address_attr2": None,
+            "ip_v6_address_attr1": IPv6Address("2001:0db8:85a3:0000:0000:8a2e:0370:7334"),
+            # "ip_v6_address_attr2": None,
         })
 
         # get fields
