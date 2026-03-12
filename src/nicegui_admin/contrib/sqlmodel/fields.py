@@ -22,8 +22,8 @@ class MultiplePKField(StringField):
                          type=_type,
                          exclude=["list", "detail", "edit", "create"])
 
-    async def serialize(self,
-                        data: dict[str, Any]) -> tuple[bool, Any]:
+    async def data_from_model(self,
+                              data: dict[str, Any]) -> tuple[bool, Any]:
         """
         Encode the primary keys values into a single string
         """

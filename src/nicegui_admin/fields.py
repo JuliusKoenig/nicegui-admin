@@ -1,7 +1,8 @@
-import decimal
 import logging
 from dataclasses import dataclass, field
+from ipaddress import IPv4Address, IPv6Address
 from typing import Any, Optional
+from uuid import UUID
 
 from nicegui import ui
 
@@ -49,87 +50,65 @@ class BaseField(DecoratedMethodClass):
     read_only: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
     exportable: bool = field(default=True)
-    cast_type: _type | None = field(default=None)
-    serialization_cast_type: _type | Unset | None = field(default=Unset)
-    serialization_mute_errors: Exception | tuple[Exception] = field(default_factory=tuple)
-    deserialization_cast_type: _type | Unset | None = field(default=Unset)
-    deserialization_mute_errors: Exception | tuple[Exception] = field(default_factory=tuple)
+    cast_type: tuple[_type] | None = field(default=None)
+    data_from_model_cast_type: tuple[_type] | Unset | None = field(default=Unset)
+    data_to_model_cast_type: tuple[_type] | Unset | None = field(default=Unset)
 
     def __post_init__(self) -> None:
         if self.name.startswith("_"):
             raise ValueError("Field name cannot start with an underscore")
         self.label = Unset.resolve(self.label, self.name.replace("_", " ").capitalize())
         self.key = Unset.resolve(self.key, self.name)
-        self.serialization_cast_type = Unset.resolve(self.serialization_cast_type, self.cast_type)
-        self.deserialization_cast_type = Unset.resolve(self.deserialization_cast_type, self.cast_type)
+        self.data_from_model_cast_type = Unset.resolve(self.data_from_model_cast_type, self.cast_type)
+        self.data_to_model_cast_type = Unset.resolve(self.data_to_model_cast_type, self.cast_type)
 
-    async def serialize_none(self) -> Any:
-        """
-        Defines the value to be used when the field is None during serialization.
-        This can be overridden in subclasses to provide a specific value for None cases.
-
-        :return: The value to be used when the field is None. By default, it returns None.
-        """
-
+    async def data_from_model_none(self) -> Any:
         return None
 
-    async def serialize(self,
-                        data: dict[str, Any]) -> tuple[bool, Any]:
-        """
-        Extracts the value of this field from submitted data.
-
-        :param data: The submitted data.
-        :return: A tuple where the first element indicates whether the value is None and the second element is the value itself.
-        """
-
+    async def data_from_model(self,
+                              data: dict[str, Any]) -> tuple[bool, Any]:
         is_none = False
         value = data.get(self.key, None)
         if value is None:
             is_none = True
-            value = await self.serialize_none()
+            value = await self.data_from_model_none()
         else:
-            if self.serialization_cast_type is not None:
-                try:
-                    value = self.serialization_cast_type(value)
-                except self.serialization_mute_errors as e:
-                    logger.exception(f"Error in serializing field '{self.name}' with value '{value}' to {self.serialization_cast_type}: {e}")
-                    value = self.serialize_none()
+            if self.data_from_model_cast_type is not None:
+                if type(value) not in self.data_from_model_cast_type:
+                    for i, cast_type in enumerate(self.data_from_model_cast_type):
+                        try:
+                            value = cast_type(value)
+                            break
+                        except Exception as e:
+                            if i < len(self.data_from_model_cast_type) - 1:
+                                continue
+                            raise e
         return is_none, value
 
-    async def deserialize_is_none(self,
-                                  value: Any) -> Any:
-        """
-        Determines if the given value should be considered as None during deserialization.
-
-        :param value: The value to be checked.
-        :return: A boolean indicating whether the value should be considered as None. By default, it returns True if the value is None, otherwise False.
-        """
-
+    async def data_to_model_is_none(self,
+                                    value: Any) -> Any:
         if value is None:
             return True
         return False
 
-    async def deserialize(self,
-                          data: dict[str, Any],
-                          value: Any) -> None:
-        """
-        Updates the data dictionary with the deserialized value for this field.
+    async def data_to_model(self,
+                            data: dict[str, Any]) -> Any:
+        value = data.get(self.name, None)
 
-        :param data:
-        :param value:
-        :return:
-        """
-
-        if await self.deserialize_is_none(value=value):
+        if await self.data_to_model_is_none(value=value):
             value = None
         else:
-            if self.deserialization_cast_type is not None:
-                try:
-                    value = self.deserialization_cast_type(value)
-                except self.deserialization_mute_errors as e:
-                    logger.exception(f"Error in deserializing field '{self.name}' with value '{value}' to {self.deserialization_cast_type}: {e}")
-                    value = None
-        data[self.key] = value
+            if self.data_to_model_cast_type is not None:
+                if type(value) not in self.data_to_model_cast_type:
+                    for i, cast_type in enumerate(self.data_to_model_cast_type):
+                        try:
+                            value = cast_type(value)
+                            break
+                        except Exception as e:
+                            if i < len(self.data_to_model_cast_type) - 1:
+                                continue
+                            raise e
+        return value
 
     def get_render_method(self,
                           mode: str,
@@ -185,7 +164,7 @@ class BooleanField(BaseField):
     This field displays the `true/false` value of a boolean property.
     """
 
-    cast_type: _type | None = field(default=bool)
+    cast_type: tuple[_type] | None = field(default=(bool,))
 
     async def list_table_body_cell(self,
                                    table: ui.table,
@@ -228,14 +207,14 @@ class StringField(BaseField):
     # suffix:	a suffix to append to the displayed value (added in version 3.5.0)
     # autocomplete
     # clearable
-    cast_type: _type | None = field(default=str)
+    cast_type: tuple[_type] | None = field(default=(str,))
 
-    async def serialize_none(self) -> str:
+    async def data_from_model_none(self) -> str:
         return ""
 
-    async def deserialize_is_none(self,
-                                  value: Any) -> bool:
-        if await super().deserialize_is_none(value):
+    async def data_to_model_is_none(self,
+                                    value: Any) -> bool:
+        if await super().data_to_model_is_none(value):
             return True
         if isinstance(value, str) and value.strip() == "":
             return True
@@ -360,46 +339,49 @@ class BaseNumberField(BaseField):
 @dataclass
 class IntegerField(BaseNumberField):
     """
-    This field is used to represent the value of properties that store integer numbers.
-    Erroneous input is ignored and will not be accepted as a value.
+    ToDo
     """
 
-    cast_type: _type | None = field(default=int)
-    deserialization_mute_errors: Exception | tuple[Exception] = field(default=(ValueError, TypeError))
+    cast_type: tuple[_type] | None = field(default=(int,))
 
 
 @dataclass
 class DecimalField(BaseNumberField):
     """
-    This field is used to represent the value of properties that store decimal numbers.
-    Erroneous input is ignored and will not be accepted as a value.
+    ToDo
     """
 
     # precision:	the number of decimal places allowed (default: no limit, negative: decimal places before the dot)
-    serialization_cast_type: _type | Unset | None = field(default=float)
-    deserialization_cast_type: _type | Unset | None = field(default=decimal.Decimal)
-    deserialization_mute_errors: Exception | tuple[Exception] = field(default=(decimal.InvalidOperation, ValueError))
+    data_from_model_cast_type: tuple[_type] | Unset | None = field(default=(float,))
 
 
 @dataclass
 class FloatField(StringField):
     """
-    A text field, except all input is coerced to an float.
-     Erroneous input is ignored and will not be accepted as a value.
+    ToDo
     """
 
-    cast_type: _type | None = field(default=float)
-    deserialization_mute_errors: Exception | tuple[Exception] = field(default=ValueError)
+    cast_type: tuple[_type] | None = field(default=(float,))
 
 @dataclass
 class IPAddressField(StringField):
     """
-    This field is used to represent the value as an IP address (both IPv4 and IPv6).
-    It validates the input to ensure it is a valid IP address and provides appropriate formatting for display.
+    ToDo
     """
 
-    serialization_cast_type: _type | Unset | None = field(default=str)
-    deserialization_cast_type: _type | Unset | None = field(default=str) # ToDo: consider using ipaddress.IPv4Address and ipaddress.IPv6Address
+    data_from_model_cast_type: tuple[_type] | Unset | None = field(default=(str,))
+    data_to_model_cast_type: tuple[_type] | Unset | None = field(default=(IPv4Address, IPv6Address))
+
+
+@dataclass
+class UUIDField(StringField):
+    """
+    ToDo
+    """
+
+    data_from_model_cast_type: tuple[_type] | Unset | None = field(default=(str,))
+    data_to_model_cast_type: tuple[_type] | Unset | None = field(default=(UUID,))
+
 
 # @dataclass
 # class TagsField(BaseField):

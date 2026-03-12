@@ -28,6 +28,8 @@ from nicegui_admin.fields import (
 if TYPE_CHECKING:
     from nicegui_admin.contrib.sqlmodel.admin import SqlModelAdmin
 
+_list = list
+
 
 @dataclass
 class SqlModelCrudView(BaseCrudView):
@@ -37,10 +39,12 @@ class SqlModelCrudView(BaseCrudView):
     :param model: SQLModel model class to be used for this view.
     """
 
-    model: type[SQLModel] = field(default=Unset, repr=False)
+    model: type[SQLModel] = field(default=Any, repr=False)
     converter: BaseSqlModelFieldConverter | Unset = field(default=Unset, repr=False)
 
     def __post_init__(self):
+        if self.model is Any:
+            raise InvalidModelError(f"Model is required for {self.__class__.__name__}")
         converter: BaseSqlModelFieldConverter = Unset.resolve(self.converter, SqlModelFieldConverter())
         self.fields = converter.convert_fields_list(fields=self.fields,
                                                     model=self.model)
@@ -168,7 +172,8 @@ class SqlModelCrudView(BaseCrudView):
                    offset: int = 0,
                    limit: int = 100,
                    where: WHERE = None,
-                   order_by: ORDER_BY = None) -> Sequence[dict[str, Any]]:
+                   order_by: ORDER_BY = None,
+                   serialization_fields: Sequence[BaseField] | None = None) -> _list[dict[str, Any]]:
         with self.admin.session() as session:
             # build query
             statement = await self.list_query()
@@ -180,12 +185,14 @@ class SqlModelCrudView(BaseCrudView):
             result = result.scalars().unique().all()
 
             # serialize result
-            obj_dicts = []
+            obj_serialized_dicts = []
             for obj in result:
                 obj_dict = obj.model_dump()
-                obj_dicts.append(obj_dict)
+                obj_serialized_dict = await self._data_from_model(data=obj_dict,
+                                                                  fields=serialization_fields)
+                obj_serialized_dicts.append(obj_serialized_dict)
 
-            return obj_dicts
+            return obj_serialized_dicts
 
     async def detail_query(self,
                            pk: str) -> Select:
@@ -229,7 +236,8 @@ class SqlModelCrudView(BaseCrudView):
         return statement
 
     async def detail(self,
-                     pk: str) -> dict[str, Any] | None:
+                     pk: str,
+                     serialization_fields: Sequence[BaseField] | None = None) -> dict[str, Any] | None:
         with self.admin.session() as session:
             # build query
             statement = await self.detail_query(pk=pk)
@@ -241,32 +249,45 @@ class SqlModelCrudView(BaseCrudView):
             result = result.scalars().unique().one_or_none()
 
             # serialize result
-            obj = None
+            obj_serialized_dict = None
             if result:
-                obj = result.model_dump()
+                obj_dict = result.model_dump()
+                obj_serialized_dict = await self._data_from_model(data=obj_dict,
+                                                                  fields=serialization_fields)
 
-            return obj
+            return obj_serialized_dict
 
     async def create(self,
-                     *data: dict[str, Any]) -> dict[str, Any] | Sequence[dict[str, Any]]:
+                     *data: dict[str, Any],
+                     deserialization_fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
         with self.admin.session() as session:
             objs = []
-            for item in data:
-                obj = self.model(**item)
+            # deserialize data
+            for data_set in data:
+                deserialized_data = await self._data_to_model(data=data_set,
+                                                              fields=deserialization_fields)
+                obj = self.model(**deserialized_data)
                 objs.append(obj)
+
+            # add to session and commit
+            for obj in objs:
                 session.add(obj)
             session.commit()
+
+            # refresh objects
             for obj in objs:
                 session.refresh(obj)
-            return objs if len(objs) > 1 else objs[0]
+
+        return objs if len(objs) > 1 else objs[0]
 
     async def edit(self,
                    *pks: str,
-                   data: dict[str, Any]) -> dict[str, Any] | Sequence[dict[str, Any]]:
+                   data: dict[str, Any],
+                   deserialization_fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
         raise NotImplementedError()
 
     async def delete(self,
-                     *pks: str) -> bool | Sequence[bool]:
+                     *pks: str) -> bool | _list[bool]:
         raise NotImplementedError()
 
     # def search_query(self, term: str) -> Any:

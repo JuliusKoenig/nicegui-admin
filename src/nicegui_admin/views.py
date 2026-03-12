@@ -150,35 +150,52 @@ class BaseCrudView(BaseView):
             raise AttributeError("pk_field is not defined")
         return self.pk_field.name.split(",")
 
-    async def serialize(self,
-                        *data: dict[str, Any],
-                        fields: Sequence[BaseField]) -> _list[dict[str, Any]]:
-        serialized_data = []
-        for data_set in data:
-            # if data_set is None, it means that the object was not found, so we return None for this data set
-            if data_set is None:
-                serialized_data.append(None)
-                continue
+    async def _data_from_model(self,
+                               data: dict[str, Any],
+                               fields: Sequence[BaseField] | None = None) -> dict[str, Any]:
+        # add hidden _pk to serialized data for reference
+        serialized_data = {"_pk": (await self.pk_field.data_from_model(data=data))[1]}
 
-            # add hidden _pk to serialized data for reference
-            serialized_data_set = {"_pk": (await self.pk_field.serialize(data=data_set))[1]}
+        # find fields by key if not provided
+        if fields is None:
+            fields = []
+            for field_key in data.keys():
+                field = None
+                for field in self.fields:
+                    if field.key == field_key:
+                        break
+                if field is None:
+                    raise ValueError(f"Field with key '{field_key}' not found in fields.")
+                fields.append(field)
 
-            # serialize fields
-            for field in fields:
-                is_none, value = await field.serialize(data=data_set)
-                serialized_data_set[field.name] = value
-            serialized_data.append(serialized_data_set)
+        # map data to field.name's'
+        for field in fields:
+            is_none, value = await field.data_from_model(data=data)
+            serialized_data[field.name] = value
+
         return serialized_data
 
-    async def deserialize(self,
-                          *data: dict[str, Any],
-                          fields: Sequence[BaseField]) -> _list[dict[str, Any]]:
-        deserialized_data = []
-        for data_set in data:
-            deserialized_data_set = {}
-            for field in fields:
-                await field.deserialize(data=data_set)
-            deserialized_data.append(deserialized_data_set)
+    async def _data_to_model(self,
+                             data: dict[str, Any],
+                             fields: Sequence[BaseField] | None = None) -> dict[str, Any]:
+        deserialized_data = {}
+
+        # find fields by name if not provided
+        if fields is None:
+            fields = []
+            for field_name in data.keys():
+                field = None
+                for field in self.fields:
+                    if field.name == field_name:
+                        break
+                if field is None:
+                    raise ValueError(f"Field with name '{field_name}' not found in fields.")
+                fields.append(field)
+
+        # map data to field.key's
+        for field in fields:
+            deserialized_data[field.key] = await field.data_to_model(data=data)
+
         return deserialized_data
 
     @abstractmethod
@@ -191,31 +208,35 @@ class BaseCrudView(BaseView):
                    offset: int = 0,
                    limit: int = 100,
                    where: WHERE = None,
-                   order_by: ORDER_BY = None) -> Sequence[dict[str, Any]]:
+                   order_by: ORDER_BY = None,
+                   serialization_fields: Sequence[BaseField] | None = None) -> _list[dict[str, Any]]:
         raise NotImplementedError()
 
     @wrapped_method
     async def detail(self,
-                     pk: str) -> dict[str, Any] | None:
+                     pk: str,
+                     serialization_fields: Sequence[BaseField] | None = None) -> dict[str, Any] | None:
         raise NotImplementedError()
 
     @abstractmethod
     async def create(self,
-                     *data: dict[str, Any]) -> dict[str, Any] | Sequence[dict[str, Any]]:
+                     *data: dict[str, Any],
+                     deserialization_fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
         raise NotImplementedError()
 
     @abstractmethod
     async def edit(self,
                    *pks: str,
-                   data: dict[str, Any]) -> dict[str, Any] | Sequence[dict[str, Any]]:
+                   data: dict[str, Any],
+                   deserialization_fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
         raise NotImplementedError()
 
     @abstractmethod
     async def delete(self,
-                     *pks: str) -> bool | Sequence[bool]:
+                     *pks: str) -> bool | _list[bool]:
         raise NotImplementedError()
 
-    async def get_fields(self, mode: str) -> Sequence[BaseField]:
+    async def get_fields(self, mode: str) -> _list[BaseField]:
         result = []
         for field in self.fields:
             if mode in field.exclude:
@@ -224,15 +245,13 @@ class BaseCrudView(BaseView):
         return result
 
     @sub_page("/")
-    async def ui_list(self,
-                      offset: int = 0,
-                      limit: int = 100,
-                      where: WHERE = None,
-                      order_by: ORDER_BY = None) -> None:
+    async def list_page(self,
+                        offset: int = 0,
+                        limit: int = 100,
+                        where: WHERE = None,
+                        order_by: ORDER_BY = None) -> None:
         # ToDo: remove after testing
         await self.create({
-            "id": random.randint(1, 10000000),
-            "name": "".join(random.choices(string.ascii_letters, k=10)),
             "boolean_attr1": True,
             # "boolean_attr2": False,
             "integer_attr1": 100,
@@ -243,9 +262,9 @@ class BaseCrudView(BaseView):
             # "string_attr2": "",
             "uuid_attr1": uuid.uuid4(),
             # "uuid_attr2": None
-            "ip_v4_address_attr1": IPv4Address("1.2.3.4"),
+            "ip_v4_address_attr1": "1.2.3.4",
             # "ip_v4_address_attr2": None,
-            "ip_v6_address_attr1": IPv6Address("2001:0db8:85a3:0000:0000:8a2e:0370:7334"),
+            "ip_v6_address_attr1": "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
             # "ip_v6_address_attr2": None,
         })
 
@@ -253,11 +272,11 @@ class BaseCrudView(BaseView):
         fields = await self.get_fields(mode="list")
 
         # get data # ToDo: implement pagination, filtering, sorting, with async loading, etc.
-        rows = await self.serialize(*await self.list(offset=offset,
-                                                     limit=limit,
-                                                     where=where,
-                                                     order_by=order_by),
-                                    fields=fields)
+        rows = await self.list(offset=offset,
+                               limit=limit,
+                               where=where,
+                               order_by=order_by,
+                               serialization_fields=fields)
 
         # build table
         table = ui.table(columns=[{"name": field.name,
@@ -290,13 +309,14 @@ class BaseCrudView(BaseView):
                  lambda e: ui.navigate.to(f"{self.prefix}/detail/{e.args[1]['_pk']}"))
 
     @sub_page("/detail/{pk}")
-    async def ui_detail(self, pk: str) -> None:
+    async def detail_page(self,
+                          pk: str) -> None:
         # get fields
         fields = await self.get_fields(mode="detail")
 
         # get data
-        data = (await self.serialize(await self.detail(pk=pk),
-                                    fields=fields))[0]
+        data = await self.detail(pk=pk,
+                                 serialization_fields=fields)
         if data is None:
             raise HTTPException(status_code=404, detail=f"{self.title} with pk '{pk}' not found!")
 
@@ -319,13 +339,14 @@ class BaseCrudView(BaseView):
         ui.button("Edit", on_click=lambda e: ui.navigate.to(f"{self.prefix}/edit/{pk}"))
 
     @sub_page("/edit/{pk}")
-    async def ui_edit(self, pk: str) -> None:
+    async def edit_page(self,
+                        pk: str) -> None:
         # get fields
         fields = await self.get_fields(mode="form")
 
         # get data
-        data = (await self.serialize(await self.detail(pk=pk),
-                                     fields=fields))[0]
+        data = await self.detail(pk=pk,
+                                 serialization_fields=fields)
         if data is None:
             raise HTTPException(status_code=404, detail=f"{self.title} with pk '{pk}' not found!")
 

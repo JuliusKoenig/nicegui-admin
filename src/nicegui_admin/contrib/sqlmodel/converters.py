@@ -38,7 +38,7 @@ from nicegui_admin.fields import (
     # ListField,# ToDo: check if needed
     # PasswordField,# ToDo: check if needed
     # PhoneField,# ToDo: check if needed
-    StringField, IPAddressField,
+    StringField, IPAddressField, UUIDField,
     # TextAreaField,# ToDo: check if needed
     # TimeField,# ToDo: check if needed
     # TimeZoneField,# ToDo: check if needed
@@ -185,14 +185,11 @@ class SqlModelFieldConverter(BaseSqlModelFieldConverter):
         return {"multiple": getattr(_type, "multiple", False)}
 
     @converts("String",
-              "sqlalchemy.sql.sqltypes.Uuid",
-              "sqlalchemy.dialects.postgresql.base.UUID",
               "sqlalchemy.dialects.postgresql.base.MACADDR",
               "sqlalchemy.dialects.postgresql.types.MACADDR",
               "sqlalchemy.dialects.postgresql.base.INET",
               "sqlalchemy.dialects.postgresql.types.INET",
-              "sqlalchemy_utils.types.locale.LocaleType",
-              "sqlalchemy_utils.types.uuid.UUIDType")  # includes Unicode
+              "sqlalchemy_utils.types.locale.LocaleType")  # includes Unicode
     def conv_string(self,
                     *args: Any,
                     **kwargs: Any) -> BaseField:
@@ -217,6 +214,14 @@ class SqlModelFieldConverter(BaseSqlModelFieldConverter):
                         *args: Any,
                         **kwargs: Any) -> BaseField:
         return IPAddressField(**self._common(**kwargs))
+
+    @converts("sqlalchemy.sql.sqltypes.Uuid",
+              "sqlalchemy.dialects.postgresql.base.UUID",
+              "sqlalchemy_utils.types.uuid.UUIDType")
+    def conv_uuid(self,
+                  *args: Any,
+                  **kwargs: Any) -> BaseField:
+        return UUIDField(**self._common(**kwargs))
 
     # @converts("DateTime")
     # def conv_datetime(self,
