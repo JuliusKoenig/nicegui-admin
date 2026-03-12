@@ -195,18 +195,13 @@ class StringField(BaseField):
     :param maxlength: Maximum length of the string. If provided, it can be used for validation and UI hints.
     :param minlength: Minimum length of the string. If provided, it can be used for validation and UI hints.
     :param placeholder: Placeholder text for the input field in the UI.
+    :param clearable: Whether the input field can be cleared by clicking the clear button.
     """
 
-    maxlength: int | None = None
-    minlength: int | None = None
-    placeholder: str | None = "Empty"
-    # password:	whether to hide the input (default: False)
-    # password_toggle_button:
-    # whether to show a button to toggle the password visibility (default: False)
-    # prefix:	a prefix to prepend to the displayed value (added in version 3.5.0)
-    # suffix:	a suffix to append to the displayed value (added in version 3.5.0)
-    # autocomplete
-    # clearable
+    maxlength: int | None = field(default=None)
+    minlength: int | None = field(default=None)
+    placeholder: str | None = field(default=None)
+    clearable: bool = field(default=False)
     cast_type: tuple[_type] | None = field(default=(str,))
 
     async def data_from_model_none(self) -> str:
@@ -224,7 +219,7 @@ class StringField(BaseField):
                          value: Any,
                          **kwargs) -> FieldRenderFunctionResult:
         return ui.input(value=value,
-                        label=self.help_text,
+                        label=self.label,
                         placeholder=self.placeholder)
 
 
@@ -356,7 +351,7 @@ class DecimalField(BaseNumberField):
 
 
 @dataclass
-class FloatField(StringField):
+class FloatField(BaseNumberField):
     """
     ToDo
     """
