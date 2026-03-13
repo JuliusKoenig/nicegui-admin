@@ -279,7 +279,7 @@ class BaseCrudView(BaseView):
                                    "sortable": field.orderable,
                                    "align": "left"} for field in fields],
                          rows=rows,
-                         row_key='name').classes("w-full").props("flat bordered")
+                         row_key='name').classes("w-full table-sticky-header").props("flat bordered")
 
         # render label cells
         for field in fields:
@@ -313,7 +313,7 @@ class BaseCrudView(BaseView):
         if data is None:
             raise HTTPException(status_code=404, detail=f"{self.title} with pk '{pk}' not found!")
 
-        with ui.card(align_items="stretch").classes("detail-table q-table--horizontal-separator table-sticky-header w-full").props("flat bordered").tight():
+        with ui.card(align_items="stretch").classes("detail-table table-sticky-header w-full").props("flat bordered").tight():
             with ui.element().classes("q-table__middle scroll"):
                 with ui.element(tag="table").classes("q-table"):
                     with ui.element(tag="thead"):

@@ -19,7 +19,6 @@ class MyAdmin(SqlModelAdmin):
 admin = MyAdmin(debug=True)
 
 
-
 class MyModel(SQLModel, table=True):
     id: int | None = Field(default_factory=lambda: random.randint(1, 1000),
                            primary_key=True,

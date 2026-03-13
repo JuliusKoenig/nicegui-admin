@@ -6,7 +6,7 @@ from nicegui.element import Element
 SyncFunction = Callable[..., Any]
 AsyncFunction = Callable[..., Awaitable[Any]]
 SyncOrAsyncFunction = SyncFunction | AsyncFunction
-FieldRenderFunctionResult = None | Element | list[Element]
+FieldRenderFunctionResult = dict[str, Element]
 FieldRenderFunction = Callable[..., Awaitable[FieldRenderFunctionResult]]
 
 class ExportType(str, Enum):

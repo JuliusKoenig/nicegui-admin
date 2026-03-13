@@ -1,5 +1,6 @@
 import logging
 from dataclasses import dataclass, field
+from enum import Enum
 from ipaddress import IPv4Address, IPv6Address
 from typing import Any, Optional
 from uuid import UUID
@@ -27,6 +28,7 @@ class BaseField(DecoratedMethodClass):
     :param name: The name of the field, used to identify the field. It should be unique within a model.
     :param type: The type of the field.
     :param label: The label of the field, used for display purposes. If not provided, it will be generated from the name.
+    :param icon: The icon of the field, used to display an icon next to the label.
     :param help_text: The help text of the field, used to provide additional information about the field in the UI.
     :param key: The key for data binding, if not provided, it will be the same as name
     :param required: Indicate if the fields is required
@@ -40,6 +42,7 @@ class BaseField(DecoratedMethodClass):
     name: str = field()
     type: type = field()
     label: str | Unset = field(default=Unset)
+    icon: str | None = field(default=None)
     help_text: str | None = field(default=None)
     key: str | Unset = field(default=Unset)
     required: bool = field(default=False)
@@ -125,37 +128,64 @@ class BaseField(DecoratedMethodClass):
     async def list_table_header_cell(self,
                                      table: ui.table,
                                      **kwargs) -> FieldRenderFunctionResult:
-        with table.header(column_name=self.name):
-            return ui.label(text=self.label).classes("text-bold")
+        elements = {}
+        with table.header(column_name=self.name) as elements["header"]:
+            if self.icon:
+                elements["label_icon"] = ui.icon(name=self.icon).classes("field-label-header-icon mr-1")
+            elements["label"] = ui.label(text=self.label).classes("field-label-header-text")
+        if self.help_text:
+            elements["header"].tooltip(self.help_text)
+
+        return elements
 
     @render_method(mode="list", element_name="value")
     async def list_table_body_cell(self,
                                    table: ui.table,
                                    **kwargs) -> FieldRenderFunctionResult:
-        with table.cell(column_name=self.name):
-            return ui.label().props(":innerHTML=\"props.row." + self.name + "\"")
+        with table.cell(column_name=self.name) as cell:
+            label = ui.label().props(":innerHTML=\"props.row." + self.name + "\"")
+        return {"cell": cell,
+                "label": label}
 
     @render_method(mode="detail", element_name="label")
     async def detail_label(self,
                            **kwargs) -> FieldRenderFunctionResult:
-        return ui.label(text=self.label).classes("text-bold")
+        elements = {}
+        with ui.row(align_items="center", wrap=False) as elements["label_row"]:
+            if self.icon:
+                elements["label_icon"] = ui.icon(name=self.icon).classes("field-label-header-icon")
+            with ui.column().classes("gap-0") as elements["label_column"]:
+                elements["label"] = ui.label(text=self.label).classes("field-label-header-text")
+                if self.help_text:
+                    elements["help_text_label"] = ui.label(self.help_text).classes("field-label-sub-header-text")
+
+        return elements
 
     @render_method(mode="detail", element_name="value")
     async def detail_value(self,
                            value: Any,
                            **kwargs) -> FieldRenderFunctionResult:
-        return ui.label(text=value)
+        return {"label": ui.label(text=value)}
 
     @render_method(mode="form", element_name="label")
     async def form_label(self,
                          **kwargs) -> FieldRenderFunctionResult:
-        return ui.label(text=self.label).classes("text-bold")
+        elements = {}
+        with ui.row(align_items="center", wrap=False) as elements["label_row"]:
+            if self.icon:
+                elements["label_icon"] = ui.icon(name=self.icon).classes("field-label-header-icon")
+            with ui.column().classes("gap-0") as elements["label_column"]:
+                elements["label"] = ui.label(text=self.label).classes("field-label-header-text")
+                if self.help_text:
+                    elements["help_text_label"] = ui.label(self.help_text).classes("field-label-sub-header-text")
+
+        return elements
 
     @render_method(mode="form", element_name="value")
     async def form_value(self,
                          value: Any,
                          **kwargs) -> FieldRenderFunctionResult:
-        return ui.label(text=value)
+        return {"label": ui.label(text=value)}
 
 
 @dataclass
@@ -164,27 +194,27 @@ class BooleanField(BaseField):
     This field displays the `true/false` value of a boolean property.
     """
 
+    icon: str | None = field(default="adjust")
     cast_type: tuple[_type] | None = field(default=(bool,))
 
     async def list_table_body_cell(self,
                                    table: ui.table,
                                    **kwargs) -> FieldRenderFunctionResult:
-        with table.cell(column_name=self.name):
-            return ui.badge().props('''
-            :label="props.value ? 'true' : 'false'"
-            :color="props.value ? 'red' : 'green'"
-            ''').classes("text-bold")
+        elements = {}
+        with table.cell(column_name=self.name) as elements["cell"]:
+            elements["badge"] = ui.badge().props(''':label="props.value ? 'true' : 'false'" :color="props.value ? 'red' : 'green'"''').classes("text-bold")
+        return elements
 
     async def detail_value(self,
                            value: Any,
                            **kwargs) -> FieldRenderFunctionResult:
-        return ui.badge(text="true" if value else "false",
-                        color="red" if value else "green").classes("text-bold")
+        return {"badge": ui.badge(text="true" if value else "false",
+                                  color="red" if value else "green").classes("text-bold")}
 
     async def form_value(self,
                          value: Any,
                          **kwargs) -> FieldRenderFunctionResult:
-        return ui.switch(value=value)
+        return {"switch": ui.switch(value=value)}
 
 
 @dataclass
@@ -198,8 +228,15 @@ class StringField(BaseField):
     :param clearable: Whether the input field can be cleared by clicking the clear button.
     """
 
+    icon: str | None = field(default="short_text")
     maxlength: int | None = field(default=None)
     minlength: int | None = field(default=None)
+
+    class LabelFormValue(str, Enum):
+        LABEL = "label"
+        HELP_TEXT = "help_text"
+
+    label_form_value: None | LabelFormValue | str = field(default=None)
     placeholder: str | None = field(default=None)
     clearable: bool = field(default=False)
     cast_type: tuple[_type] | None = field(default=(str,))
@@ -218,9 +255,17 @@ class StringField(BaseField):
     async def form_value(self,
                          value: Any,
                          **kwargs) -> FieldRenderFunctionResult:
-        return ui.input(value=value,
-                        label=self.label,
-                        placeholder=self.placeholder)
+        value_label = None
+        if self.label_form_value is not None:
+            if self.label_form_value == StringField.LabelFormValue.LABEL:
+                value_label = self.label
+            elif self.label_form_value == StringField.LabelFormValue.HELP_TEXT:
+                value_label = self.help_text
+            else:
+                value_label = self.label_form_value
+        return {"input": ui.input(value=value,
+                                  label=value_label,
+                                  placeholder=self.placeholder)}
 
 
 # @dataclass
@@ -321,6 +366,7 @@ class BaseNumberField(BaseField):
     :param placeholder: Placeholder text for the input field in the UI.
     """
 
+    icon: str | None = field(default="numbers")
     max: int | None = None
     min: int | None = None
     step: int | None = None
@@ -358,12 +404,14 @@ class FloatField(BaseNumberField):
 
     cast_type: tuple[_type] | None = field(default=(float,))
 
+
 @dataclass
 class IPAddressField(StringField):
     """
     ToDo
     """
 
+    icon: str | None = field(default="location_on")
     data_from_model_cast_type: tuple[_type] | Unset | None = field(default=(str,))
     data_to_model_cast_type: tuple[_type] | Unset | None = field(default=(IPv4Address, IPv6Address))
 
@@ -374,9 +422,9 @@ class UUIDField(StringField):
     ToDo
     """
 
+    icon: str | None = field(default="fingerprint")
     data_from_model_cast_type: tuple[_type] | Unset | None = field(default=(str,))
     data_to_model_cast_type: tuple[_type] | Unset | None = field(default=(UUID,))
-
 
 # @dataclass
 # class TagsField(BaseField):
