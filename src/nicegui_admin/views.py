@@ -1,23 +1,16 @@
-import random
-import string
 import uuid
 from dataclasses import dataclass, field as _field
-from ipaddress import IPv4Address, IPv6Address
-from typing import Union, TYPE_CHECKING
+from typing import Union
 from abc import abstractmethod
 from typing import Any, Sequence
 
 from fastapi import HTTPException
 from nicegui import ui
 
-from nicegui_admin.elements.detail_table import DetailTable
 from nicegui_admin.fields import BaseField
 from nicegui_admin.helpers import Unset, slugify_name, prettify_name, wrapped_method
-from nicegui_admin.sub_page import SubPageRouter, sub_page
+from nicegui_admin.admin import BaseAdmin, sub_page, SubPageRouter
 from nicegui_admin.types import ExportType
-
-if TYPE_CHECKING:
-    from nicegui_admin.admin import BaseAdmin
 
 
 @dataclass
@@ -45,7 +38,7 @@ class BaseView(SubPageRouter):
         self.icon = Unset.resolve(self.icon, None)
 
     @property
-    def admin(self) -> Union["BaseAdmin", Any, None]:
+    def admin(self) -> Union[BaseAdmin, Any, None]:
         return getattr(self, "_admin", None)
 
 
@@ -286,7 +279,7 @@ class BaseCrudView(BaseView):
                                    "sortable": field.orderable,
                                    "align": "left"} for field in fields],
                          rows=rows,
-                         row_key='name').classes("w-full")
+                         row_key='name').classes("w-full").props("flat bordered")
 
         # render label cells
         for field in fields:
@@ -320,20 +313,35 @@ class BaseCrudView(BaseView):
         if data is None:
             raise HTTPException(status_code=404, detail=f"{self.title} with pk '{pk}' not found!")
 
-        with DetailTable(columns=["Attribute",
-                                  "Value"]).classes("w-full"):
-            for field in fields:
-                # render label
-                label_render_method = field.get_render_method(mode="detail",
-                                                              element_name="label")
-                if label_render_method is not None:
-                    await label_render_method()
+        with ui.card(align_items="stretch").classes("detail-table q-table--horizontal-separator table-sticky-header w-full").props("flat bordered").tight():
+            with ui.element().classes("q-table__middle scroll"):
+                with ui.element(tag="table").classes("q-table"):
+                    with ui.element(tag="thead"):
+                        with ui.element(tag="tr"):
+                            with ui.element(tag="th").classes("text-left"), ui.row(align_items="center", wrap=False):
+                                ui.icon(name="label_outline").classes("field-label-header-icon")
+                                ui.label(text="Attribute").classes("field-label-header-text")
+                            with ui.element(tag="th").classes("text-left"), ui.row(align_items="center", wrap=False):
+                                ui.icon(name="toc").classes("field-label-header-icon")
+                                ui.label(text="Value").classes("field-label-header-text")
+                    tbody = ui.element(tag="tbody")
 
-                # render value
-                value_render_method = field.get_render_method(mode="detail",
-                                                              element_name="value")
-                if value_render_method is not None:
-                    await value_render_method(value=data.get(field.name))
+        with tbody:
+            for field in fields:
+                with ui.element(tag="tr"):
+                    with ui.element(tag="td").classes("text-left"):
+                        # render label
+                        label_render_method = field.get_render_method(mode="detail",
+                                                                      element_name="label")
+                        if label_render_method is not None:
+                            await label_render_method()
+
+                    with ui.element(tag="td").classes("text-left"):
+                        # render value
+                        value_render_method = field.get_render_method(mode="detail",
+                                                                      element_name="value")
+                        if value_render_method is not None:
+                            await value_render_method(value=data.get(field.name))
 
         ui.button("Back", on_click=lambda e: ui.navigate.back())
         ui.button("Edit", on_click=lambda e: ui.navigate.to(f"{self.prefix}/edit/{pk}"))
@@ -350,18 +358,27 @@ class BaseCrudView(BaseView):
         if data is None:
             raise HTTPException(status_code=404, detail=f"{self.title} with pk '{pk}' not found!")
 
-        with ui.column().classes("w-full"):
-            for field in fields:
-                # render label
-                label_render_method = field.get_render_method(mode="form",
-                                                              element_name="label")
-                if label_render_method is not None:
-                    await label_render_method()
+        # with ui.column().classes("w-full"):
+        for field in fields:
+            with ui.card(align_items="stretch").classes("w-full").props("flat bordered").tight() as card:
+                with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as label_section:
+                    # render label
+                    label_render_method = field.get_render_method(mode="form",
+                                                                  element_name="label")
+                    if label_render_method is not None:
+                        await label_render_method()
 
-                # render value
-                value_render_method = field.get_render_method(mode="form",
-                                                              element_name="value")
-                if value_render_method is not None:
-                    await value_render_method(value=data.get(field.name))
+                ui.separator()
+
+                with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as value_section:
+                    # render value
+                    value_render_method = field.get_render_method(mode="form",
+                                                                  element_name="value")
+                    if value_render_method is not None:
+                        await value_render_method(value=data.get(field.name))
+
+            # card.classes("bg-red-100")
+            # label_section.classes("bg-blue-100")
+            # value_section.classes("bg-green-100")
 
         ui.button("Back", on_click=lambda e: ui.navigate.back())
