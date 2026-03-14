@@ -283,23 +283,16 @@ class BaseCrudView(BaseView):
 
         # render label cells
         for field in fields:
-            render_method = field.get_render_method(mode="list",
-                                                    element_name="label")
-            if render_method is not None:
-                with table.add_slot(name=f"header-cell-{field.key}"):
-                    await render_method(table=table)
+            with table.add_slot(name=f"header-cell-{field.key}"):
+                await field.list_table_header_cell(table=table)
 
         # render value cells
         for field in fields:
-            render_method = field.get_render_method(mode="list",
-                                                    element_name="value")
-            if render_method is not None:
-                with table.add_slot(name=f"body-cell-{field.key}"):
-                    await render_method(table=table)
+            with table.add_slot(name=f"body-cell-{field.key}"):
+                await field.list_table_body_cell(table=table)
 
         # setup event handlers
-        table.on("row-click",
-                 lambda e: ui.navigate.to(f"{self.prefix}/detail/{e.args[1]['_pk']}"))
+        table.on("row-click", lambda e: ui.navigate.to(f"{self.prefix}/detail/{e.args[1]['_pk']}"))
 
     @sub_page("/detail/{pk}")
     async def detail_page(self,
@@ -331,17 +324,11 @@ class BaseCrudView(BaseView):
                 with ui.element(tag="tr"):
                     with ui.element(tag="td").classes("text-left"):
                         # render label
-                        label_render_method = field.get_render_method(mode="detail",
-                                                                      element_name="label")
-                        if label_render_method is not None:
-                            await label_render_method()
+                        await field.detail_label()
 
                     with ui.element(tag="td").classes("text-left"):
                         # render value
-                        value_render_method = field.get_render_method(mode="detail",
-                                                                      element_name="value")
-                        if value_render_method is not None:
-                            await value_render_method(value=data.get(field.name))
+                        await field.detail_value(value=data.get(field.name))
 
         ui.button("Back", on_click=lambda e: ui.navigate.back())
         ui.button("Edit", on_click=lambda e: ui.navigate.to(f"{self.prefix}/edit/{pk}"))
@@ -363,19 +350,13 @@ class BaseCrudView(BaseView):
             with ui.card(align_items="stretch").classes("w-full").props("flat bordered").tight() as card:
                 with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as label_section:
                     # render label
-                    label_render_method = field.get_render_method(mode="form",
-                                                                  element_name="label")
-                    if label_render_method is not None:
-                        await label_render_method()
+                    await field.form_label()
 
                 ui.separator()
 
                 with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as value_section:
                     # render value
-                    value_render_method = field.get_render_method(mode="form",
-                                                                  element_name="value")
-                    if value_render_method is not None:
-                        await value_render_method(value=data.get(field.name))
+                    await field.form_value(value=data.get(field.name))
 
             # card.classes("bg-red-100")
             # label_section.classes("bg-blue-100")

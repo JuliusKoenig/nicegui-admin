@@ -2,26 +2,20 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from ipaddress import IPv4Address, IPv6Address
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from nicegui import ui
 
-from nicegui_admin.helpers import Unset, DecoratedMethodClass, decorate
-from nicegui_admin.types import FieldRenderFunction, FieldRenderFunctionResult
+from nicegui_admin.helpers import Unset
+from nicegui_admin.types import FieldRenderResult
 
 logger = logging.getLogger(__name__)
 _type = type
 
 
-def render_method(mode: str, element_name: str | None = None):
-    return decorate(context="render_method",
-                    mode=mode,
-                    element_name=element_name)
-
-
 @dataclass
-class BaseField(DecoratedMethodClass):
+class BaseField:
     """
     Base class for fields
 
@@ -113,79 +107,46 @@ class BaseField(DecoratedMethodClass):
                             raise e
         return value
 
-    def get_render_method(self,
-                          mode: str,
-                          element_name: str | None = None) -> Optional[FieldRenderFunction]:
-        for method, kwargs in self.__decorated_methods__.get("render_method", {}).items():
-            if kwargs["mode"] != mode:
-                continue
-            if kwargs["element_name"] != element_name:
-                continue
-            return method
-        return None
-
-    @render_method(mode="list", element_name="label")  # ToDo: see PR: https://github.com/zauberzeug/nicegui/pull/5871
     async def list_table_header_cell(self,
-                                     table: ui.table,
-                                     **kwargs) -> FieldRenderFunctionResult:
-        elements = {}
-        with table.header(column_name=self.name) as elements["header"]:
+                                     table: ui.table) -> FieldRenderResult:
+        with table.header(column_name=self.name) as header:
             if self.icon:
-                elements["label_icon"] = ui.icon(name=self.icon).classes("field-label-header-icon mr-1")
-            elements["label"] = ui.label(text=self.label).classes("field-label-header-text")
+                ui.icon(name=self.icon).classes("field-label-header-icon mr-1")
+            ui.label(text=self.label).classes("field-label-header-text")
         if self.help_text:
-            elements["header"].tooltip(self.help_text)
+            header.tooltip(self.help_text)
 
-        return elements
-
-    @render_method(mode="list", element_name="value")
     async def list_table_body_cell(self,
-                                   table: ui.table,
-                                   **kwargs) -> FieldRenderFunctionResult:
-        with table.cell(column_name=self.name) as cell:
-            label = ui.label().props(":innerHTML=\"props.row." + self.name + "\"")
-        return {"cell": cell,
-                "label": label}
+                                   table: ui.table) -> FieldRenderResult:
+        with table.cell(column_name=self.name):
+            ui.label().props(":innerHTML=\"props.row." + self.name + "\"")
 
-    @render_method(mode="detail", element_name="label")
-    async def detail_label(self,
-                           **kwargs) -> FieldRenderFunctionResult:
-        elements = {}
-        with ui.row(align_items="center", wrap=False) as elements["label_row"]:
+    async def detail_label(self) -> FieldRenderResult:
+        with ui.row(align_items="center", wrap=False):
             if self.icon:
-                elements["label_icon"] = ui.icon(name=self.icon).classes("field-label-header-icon")
-            with ui.column().classes("gap-0") as elements["label_column"]:
-                elements["label"] = ui.label(text=self.label).classes("field-label-header-text")
+                ui.icon(name=self.icon).classes("field-label-header-icon")
+            with ui.column().classes("gap-0"):
+                ui.label(text=self.label).classes("field-label-header-text")
                 if self.help_text:
-                    elements["help_text_label"] = ui.label(self.help_text).classes("field-label-sub-header-text")
+                    ui.label(self.help_text).classes("field-label-sub-header-text")
 
-        return elements
-
-    @render_method(mode="detail", element_name="value")
     async def detail_value(self,
-                           value: Any,
-                           **kwargs) -> FieldRenderFunctionResult:
-        return {"label": ui.label(text=value)}
+                           value: Any) -> FieldRenderResult:
+        ui.label(text=value)
 
-    @render_method(mode="form", element_name="label")
     async def form_label(self,
-                         **kwargs) -> FieldRenderFunctionResult:
-        elements = {}
-        with ui.row(align_items="center", wrap=False) as elements["label_row"]:
+                         **kwargs) -> FieldRenderResult:
+        with ui.row(align_items="center", wrap=False):
             if self.icon:
-                elements["label_icon"] = ui.icon(name=self.icon).classes("field-label-header-icon")
-            with ui.column().classes("gap-0") as elements["label_column"]:
-                elements["label"] = ui.label(text=self.label).classes("field-label-header-text")
+                ui.icon(name=self.icon).classes("field-label-header-icon")
+            with ui.column().classes("gap-0"):
+                ui.label(text=self.label).classes("field-label-header-text")
                 if self.help_text:
-                    elements["help_text_label"] = ui.label(self.help_text).classes("field-label-sub-header-text")
+                    ui.label(self.help_text).classes("field-label-sub-header-text")
 
-        return elements
-
-    @render_method(mode="form", element_name="value")
     async def form_value(self,
-                         value: Any,
-                         **kwargs) -> FieldRenderFunctionResult:
-        return {"label": ui.label(text=value)}
+                         value: Any) -> FieldRenderResult:
+        ui.label(text=value)
 
 
 @dataclass
@@ -199,22 +160,17 @@ class BooleanField(BaseField):
 
     async def list_table_body_cell(self,
                                    table: ui.table,
-                                   **kwargs) -> FieldRenderFunctionResult:
-        elements = {}
-        with table.cell(column_name=self.name) as elements["cell"]:
-            elements["badge"] = ui.badge().props(''':label="props.value ? 'true' : 'false'" :color="props.value ? 'red' : 'green'"''').classes("text-bold")
-        return elements
+                                   **kwargs) -> FieldRenderResult:
+        with table.cell(column_name=self.name):
+            ui.badge().props(''':label="props.value ? 'true' : 'false'" :color="props.value ? 'red' : 'green'"''').classes("text-bold")
 
     async def detail_value(self,
-                           value: Any,
-                           **kwargs) -> FieldRenderFunctionResult:
-        return {"badge": ui.badge(text="true" if value else "false",
-                                  color="red" if value else "green").classes("text-bold")}
+                           value: Any) -> FieldRenderResult:
+        ui.badge(text="true" if value else "false", color="red" if value else "green").classes("text-bold")
 
     async def form_value(self,
-                         value: Any,
-                         **kwargs) -> FieldRenderFunctionResult:
-        return {"switch": ui.switch(value=value)}
+                         value: Any) -> FieldRenderResult:
+        ui.switch(value=value)
 
 
 @dataclass
@@ -253,8 +209,7 @@ class StringField(BaseField):
         return False
 
     async def form_value(self,
-                         value: Any,
-                         **kwargs) -> FieldRenderFunctionResult:
+                         value: Any) -> FieldRenderResult:
         value_label = None
         if self.label_form_value is not None:
             if self.label_form_value == StringField.LabelFormValue.LABEL:
@@ -263,9 +218,7 @@ class StringField(BaseField):
                 value_label = self.help_text
             else:
                 value_label = self.label_form_value
-        return {"input": ui.input(value=value,
-                                  label=value_label,
-                                  placeholder=self.placeholder)}
+        ui.input(value=value, label=value_label, placeholder=self.placeholder)
 
 
 # @dataclass

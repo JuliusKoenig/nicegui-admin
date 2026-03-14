@@ -9,7 +9,7 @@ from typing import Any, TypeVar, Iterable
 from nicegui.element import Element
 from nicegui.helpers import is_coroutine_function
 
-from nicegui_admin.types import SyncOrAsyncFunction
+from nicegui_admin.types import SyncOrAsyncMethod
 
 T = TypeVar("T")
 
@@ -85,14 +85,14 @@ DECORATED_METHODS: dict[str, dict[str, dict[str, Any]]] = {}
 
 def decorate(context: str,
              **kwargs):
-    def decorator(func: SyncOrAsyncFunction) -> SyncOrAsyncFunction:
+    def decorator(func: SyncOrAsyncMethod) -> SyncOrAsyncMethod:
         add_decorate(func, context, **kwargs)
         return func
 
     return decorator
 
 
-def add_decorate(func: SyncOrAsyncFunction, context: str, **kwargs) -> None:
+def add_decorate(func: SyncOrAsyncMethod, context: str, **kwargs) -> None:
     global DECORATED_METHODS
 
     if context not in DECORATED_METHODS:
@@ -129,10 +129,10 @@ class DecoratedMethodClassMeta(ABCMeta):
 
 
 class DecoratedMethodClass(metaclass=DecoratedMethodClassMeta):
-    ___decorated_methods___: dict[str, dict[str | SyncOrAsyncFunction, Any]]
+    ___decorated_methods___: dict[str, dict[str | SyncOrAsyncMethod, Any]]
 
     @property
-    def __decorated_methods__(self) -> dict[str, dict[SyncOrAsyncFunction, Any]]:
+    def __decorated_methods__(self) -> dict[str, dict[SyncOrAsyncMethod, Any]]:
         decorated_methods = {}
         for context, methods in self.___decorated_methods___.items():
             decorated_methods[context] = {}
@@ -147,7 +147,7 @@ class DecoratedMethodClass(metaclass=DecoratedMethodClassMeta):
     def __decorate__(self,
                      context: str,
                      **kwargs):
-        def decorator(func: SyncOrAsyncFunction) -> SyncOrAsyncFunction:
+        def decorator(func: SyncOrAsyncMethod) -> SyncOrAsyncMethod:
             self.__add_decoration__(func,
                                     context,
                                     **kwargs)
@@ -155,7 +155,7 @@ class DecoratedMethodClass(metaclass=DecoratedMethodClassMeta):
 
         return decorator
 
-    def __add_decoration__(self, func: SyncOrAsyncFunction, context: str, **kwargs) -> None:
+    def __add_decoration__(self, func: SyncOrAsyncMethod, context: str, **kwargs) -> None:
         if context not in self.___decorated_methods___:
             self.___decorated_methods___[context] = {}
         self.___decorated_methods___[context][func] = kwargs
@@ -165,7 +165,7 @@ WRAPPED_METHODS = []
 
 
 # ToDo: check if needed
-def wrapped_method(func: SyncOrAsyncFunction) -> SyncOrAsyncFunction:
+def wrapped_method(func: SyncOrAsyncMethod) -> SyncOrAsyncMethod:
     global WRAPPED_METHODS
     if func.__name__.startswith("before_"):
         raise ValueError("Method name cannot start with 'before_'!")

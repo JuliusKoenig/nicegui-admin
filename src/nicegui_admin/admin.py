@@ -9,7 +9,7 @@ from nicegui import ui, background_tasks
 from nicegui.page_arguments import RouteMatch, PageArguments
 
 from nicegui_admin.helpers import DecoratedMethodClass, decorate, Unset, prettify_name
-from nicegui_admin.types import SyncOrAsyncFunction
+from nicegui_admin.types import SyncOrAsyncMethod
 
 if TYPE_CHECKING:
     from nicegui_admin.views import BaseView
@@ -61,7 +61,7 @@ class SubPageRouter(DecoratedMethodClass):
             super().__init__(show_404=True)
 
         @property
-        def _routes(self) -> dict[str, SyncOrAsyncFunction]:
+        def _routes(self) -> dict[str, SyncOrAsyncMethod]:
             """
             The routes for the SubPages component.
 
@@ -74,12 +74,12 @@ class SubPageRouter(DecoratedMethodClass):
             for path, kwargs in self.sub_page_router.sub_pages.items():
                 if self._root_path is not None:
                     path = path[len(self._root_path):] if path.startswith(self._root_path) else path
-                builder: SyncOrAsyncFunction = kwargs["builder"]
+                builder: SyncOrAsyncMethod = kwargs["builder"]
                 routes[path] = builder
             return routes
 
         @property
-        def _builder_attributes(self) -> dict[SyncOrAsyncFunction, dict[str, Any]]:
+        def _builder_attributes(self) -> dict[SyncOrAsyncMethod, dict[str, Any]]:
             """
             Builder attributes for the SubPages component.
 
@@ -280,7 +280,7 @@ class SubPageRouter(DecoratedMethodClass):
                  path: str,
                  *,
                  title: str | None = Unset,
-                 icon: str | Path | None = None) -> SyncOrAsyncFunction:
+                 icon: str | Path | None = None) -> SyncOrAsyncMethod:
         """
         Decorator for adding a SubPage to the SubPage router.
         Use this decorator after instantiating the SubPage router to add builder functions for the SubPages.
@@ -298,7 +298,7 @@ class SubPageRouter(DecoratedMethodClass):
 
     # rename favicon to icon
     def add_sub_page(self,
-                     builder: SyncOrAsyncFunction,
+                     builder: SyncOrAsyncMethod,
                      path: str,
                      *,
                      title: str | None = Unset,

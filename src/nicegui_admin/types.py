@@ -1,13 +1,16 @@
 from enum import Enum
 from typing import Callable, Any, Awaitable
 
-from nicegui.element import Element
+SyncMethod = Callable[..., Any]
+AsyncMethod = Callable[..., Awaitable[Any]]
+SyncOrAsyncMethod = SyncMethod | AsyncMethod
 
-SyncFunction = Callable[..., Any]
-AsyncFunction = Callable[..., Awaitable[Any]]
-SyncOrAsyncFunction = SyncFunction | AsyncFunction
-FieldRenderFunctionResult = dict[str, Element]
-FieldRenderFunction = Callable[..., Awaitable[FieldRenderFunctionResult]]
+FieldGetterMethodResult = Any
+FieldGetterMethod = Callable[[], Awaitable[FieldGetterMethodResult]]
+FieldValidatorMethodResult = None | str
+FieldValidatorMethod = Callable[[], Awaitable[FieldValidatorMethodResult]]
+FieldRenderResult = None | tuple[FieldGetterMethod, FieldValidatorMethod]
+
 
 class ExportType(str, Enum):
     """Enumeration of string constants that represent different export types."""
