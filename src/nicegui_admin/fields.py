@@ -28,9 +28,7 @@ class BaseField:
     :param required: Indicate if the fields is required
     :param searchable: Indicate if the fields is searchable
     :param orderable: Indicate if the fields is orderable
-    :param disabled: Indicate if the field is disabled. Can be a boolean or a list of CRUD modes in which the field is disabled.
-    :param read_only: Indicate if the field is read-only. Can be a boolean or a list of CRUD modes in which the field is read-only.
-    :param exclude: Control field visibility in list page. Can be a boolean or a list of CRUD modes in which the field is excluded.
+    :param exclude: Control field visibility in list page.
     """
 
     name: str = field()
@@ -43,8 +41,6 @@ class BaseField:
     align: str | None = field(default="right")
     searchable: bool = field(default=True)
     orderable: bool = field(default=True)
-    disabled: list[str] = field(default_factory=list)
-    read_only: list[str] = field(default_factory=list)
     exclude: list[str] = field(default_factory=list)
     exportable: bool = field(default=True)
     cast_type: tuple[_type] | None = field(default=None)
@@ -83,7 +79,7 @@ class BaseField:
         return is_none, value
 
     async def data_to_model_is_none(self,
-                                    value: Any) -> Any:
+                                    value: Any) -> bool:
         if value is None:
             return True
         return False
@@ -146,7 +142,19 @@ class BaseField:
 
     async def form_value(self,
                          value: Any) -> FieldRenderResult:
-        ui.label(text=value)
+        label = ui.label(text=value)
+        return lambda: label.text
+
+    async def form_value_validator(self,
+                                   value: Any) -> None | str:
+        if self.required:
+            if await self.data_to_model_is_none(value=value):
+                return "This field is required"
+        try:
+            await self.data_to_model(data={self.name: value})
+        except Exception as e:
+            return f"Invalid value: {e}"
+        return None
 
 
 @dataclass
@@ -170,7 +178,8 @@ class BooleanField(BaseField):
 
     async def form_value(self,
                          value: Any) -> FieldRenderResult:
-        ui.switch(value=value)
+        switch = ui.switch(value=value)
+        return lambda: switch.value
 
 
 @dataclass
@@ -187,6 +196,7 @@ class StringField(BaseField):
     icon: str | None = field(default="short_text")
     maxlength: int | None = field(default=None)
     minlength: int | None = field(default=None)
+    allowed_characters: str | None = field(default=None)
 
     class LabelFormValue(str, Enum):
         LABEL = "label"
@@ -194,7 +204,7 @@ class StringField(BaseField):
 
     label_form_value: None | LabelFormValue | str = field(default=None)
     placeholder: str | None = field(default=None)
-    clearable: bool = field(default=False)
+    clearable: bool = field(default=True)
     cast_type: tuple[_type] | None = field(default=(str,))
 
     async def data_from_model_none(self) -> str:
@@ -218,7 +228,30 @@ class StringField(BaseField):
                 value_label = self.help_text
             else:
                 value_label = self.label_form_value
-        ui.input(value=value, label=value_label, placeholder=self.placeholder)
+        input_element = ui.input(value=value,
+                                 label=value_label,
+                                 placeholder=self.placeholder,
+                                 validation=self.form_value_validator)
+        if self.clearable:
+            input_element.props("clearable")
+        input_element.validate(return_result=False)
+        return lambda: input_element.value
+
+    async def form_value_validator(self,
+                                   value: Any) -> None | str:
+        result = await super().form_value_validator(value=value)
+        if result is not None:
+            return result
+        if self.minlength is not None:
+            if len(value) < self.minlength:
+                return f"Minimum length is {self.minlength}"
+        if self.maxlength is not None:
+            if len(value) > self.maxlength:
+                return f"Maximum length is {self.maxlength}"
+        if self.allowed_characters is not None:
+            if any(c not in self.allowed_characters for c in value):
+                return f"Only the following characters are allowed: {self.allowed_characters}"
+        return None
 
 
 # @dataclass

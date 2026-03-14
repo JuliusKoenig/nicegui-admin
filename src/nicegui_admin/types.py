@@ -1,15 +1,13 @@
 from enum import Enum
-from typing import Callable, Any, Awaitable
+from typing import Callable, Any, Awaitable, Optional
+
 
 SyncMethod = Callable[..., Any]
 AsyncMethod = Callable[..., Awaitable[Any]]
 SyncOrAsyncMethod = SyncMethod | AsyncMethod
 
-FieldGetterMethodResult = Any
-FieldGetterMethod = Callable[[], Awaitable[FieldGetterMethodResult]]
-FieldValidatorMethodResult = None | str
-FieldValidatorMethod = Callable[[], Awaitable[FieldValidatorMethodResult]]
-FieldRenderResult = None | tuple[FieldGetterMethod, FieldValidatorMethod]
+FieldFormGetter = Optional[Callable[[], Any]]
+FieldRenderResult = Optional[FieldFormGetter]
 
 
 class ExportType(str, Enum):
