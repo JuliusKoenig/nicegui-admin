@@ -2,13 +2,15 @@ import logging
 from dataclasses import dataclass, field
 from enum import Enum
 from ipaddress import IPv4Address, IPv6Address
-from typing import Any
+from typing import Any, TYPE_CHECKING
 from uuid import UUID
 
 from nicegui import ui
 
 from nicegui_admin.helpers import Unset
-from nicegui_admin.types import FieldRenderResult
+
+if TYPE_CHECKING:
+    from nicegui_admin.views import BaseCrudView
 
 logger = logging.getLogger(__name__)
 _type = type
@@ -104,7 +106,7 @@ class BaseField:
         return value
 
     async def list_table_header_cell(self,
-                                     table: ui.table) -> FieldRenderResult:
+                                     table: ui.table) -> None:
         with table.header(column_name=self.name) as header:
             if self.icon:
                 ui.icon(name=self.icon).classes("field-label-header-icon mr-1")
@@ -113,11 +115,11 @@ class BaseField:
             header.tooltip(self.help_text)
 
     async def list_table_body_cell(self,
-                                   table: ui.table) -> FieldRenderResult:
+                                   table: ui.table) -> None:
         with table.cell(column_name=self.name):
             ui.label().props(":innerHTML=\"props.row." + self.name + "\"")
 
-    async def detail_label(self) -> FieldRenderResult:
+    async def detail_label(self):
         with ui.row(align_items="center", wrap=False):
             if self.icon:
                 ui.icon(name=self.icon).classes("field-label-header-icon")
@@ -127,11 +129,10 @@ class BaseField:
                     ui.label(self.help_text).classes("field-label-sub-header-text")
 
     async def detail_value(self,
-                           value: Any) -> FieldRenderResult:
+                           value: Any) -> None:
         ui.label(text=value)
 
-    async def form_label(self,
-                         **kwargs) -> FieldRenderResult:
+    async def form_label(self) -> None:
         with ui.row(align_items="center", wrap=False):
             if self.icon:
                 ui.icon(name=self.icon).classes("field-label-header-icon")
@@ -141,9 +142,9 @@ class BaseField:
                     ui.label(self.help_text).classes("field-label-sub-header-text")
 
     async def form_value(self,
-                         value: Any) -> FieldRenderResult:
-        label = ui.label(text=value)
-        return lambda: label.text
+                         field_handler: "BaseCrudView.Form.FieldHandler") -> None:
+        field_handler.elements["label"] = ui.label(text=field_handler.original_value)
+        field_handler.form_getter = lambda: field_handler.elements["label"].text
 
     async def form_value_validator(self,
                                    value: Any) -> None | str:
@@ -167,19 +168,18 @@ class BooleanField(BaseField):
     cast_type: tuple[_type] | None = field(default=(bool,))
 
     async def list_table_body_cell(self,
-                                   table: ui.table,
-                                   **kwargs) -> FieldRenderResult:
+                                   table: ui.table) -> None:
         with table.cell(column_name=self.name):
             ui.badge().props(''':label="props.value ? 'true' : 'false'" :color="props.value ? 'red' : 'green'"''').classes("text-bold")
 
     async def detail_value(self,
-                           value: Any) -> FieldRenderResult:
+                           value: Any) -> None:
         ui.badge(text="true" if value else "false", color="red" if value else "green").classes("text-bold")
 
     async def form_value(self,
-                         value: Any) -> FieldRenderResult:
-        switch = ui.switch(value=value)
-        return lambda: switch.value
+                         field_handler: "BaseCrudView.Form.FieldHandler") -> None:
+        field_handler.elements["switch"] = ui.switch(value=field_handler.original_value)
+        field_handler.form_getter = lambda: field_handler.elements["switch"].value
 
 
 @dataclass
@@ -219,7 +219,7 @@ class StringField(BaseField):
         return False
 
     async def form_value(self,
-                         value: Any) -> FieldRenderResult:
+                         field_handler: "BaseCrudView.Form.FieldHandler") -> None:
         value_label = None
         if self.label_form_value is not None:
             if self.label_form_value == StringField.LabelFormValue.LABEL:
@@ -228,14 +228,14 @@ class StringField(BaseField):
                 value_label = self.help_text
             else:
                 value_label = self.label_form_value
-        input_element = ui.input(value=value,
-                                 label=value_label,
-                                 placeholder=self.placeholder,
-                                 validation=self.form_value_validator)
+        field_handler.elements["input"] = ui.input(value=field_handler.original_value,
+                                                   label=value_label,
+                                                   placeholder=self.placeholder,
+                                                   validation=field_handler.form_validator)
         if self.clearable:
-            input_element.props("clearable")
-        input_element.validate(return_result=False)
-        return lambda: input_element.value
+            field_handler.elements["input"].props("clearable")
+        field_handler.form_getter = lambda: field_handler.elements["input"].value
+        field_handler.elements["input"].validate(return_result=False)
 
     async def form_value_validator(self,
                                    value: Any) -> None | str:

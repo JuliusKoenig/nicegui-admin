@@ -1,6 +1,6 @@
 import uuid
 from dataclasses import dataclass, field as _field
-from typing import Union
+from typing import Union, Optional, Callable, Awaitable
 from abc import abstractmethod
 from typing import Any, Sequence
 
@@ -56,6 +56,73 @@ class BaseCrudView(BaseView):
     """
     Base class for all CRUD views.
     """
+
+    class Form:
+        class FieldHandler:
+            def __init__(self,
+                         form: "BaseCrudView.Form",
+                         field: BaseField,
+                         original_value: Any = None,
+                         elements: dict[str, Any] | None = None,
+                         form_getter: Optional[Callable[[], Awaitable[Any]]] = None):
+                self._form: "BaseCrudView.Form" = form
+                self._field: BaseField = field
+                self._original_value: Any = original_value
+                if elements is None:
+                    elements = {}
+                self.elements: dict[str, Any] | None = elements
+                self.form_getter: Optional[Callable[[], Awaitable[Any]]] = form_getter
+                self._form_validator_result: None | str = None
+
+            @property
+            def form(self) -> "BaseCrudView.Form":
+                return self._form
+
+            @property
+            def field(self) -> BaseField:
+                return self._field
+
+            @property
+            def original_value(self) -> Any:
+                return self._original_value
+
+            @property
+            def form_validator(self) -> Optional[Callable[[Any], Awaitable[None | str]]]:
+                async def wrapper(value: Any) -> None | str:
+                    result = await self.field.form_value_validator(value=value)
+                    self._form_validator_result = result
+                    return result
+
+                return wrapper
+
+            @property
+            def form_validator_result(self) -> None | str:
+                return self._form_validator_result
+
+        def __init__(self):
+            self._field_handler = []
+
+        @property
+        def correct(self) -> bool:
+            for handler in self._field_handler:
+                if handler.form_validator_result is not None:
+                    return False
+            return True
+
+        @property
+        def field_handler(self) -> dict[str, "BaseCrudView.Form.FieldHandler"]:
+            return {handler.field.name: handler for handler in self._field_handler}
+
+        def add_field_handler(self,
+                              field: BaseField,
+                              original_value: Any = None) -> "BaseCrudView.Form.FieldHandler":
+            if field.name in self.field_handler:
+                raise RuntimeError(f"Field {field} already exists")
+            handler = BaseCrudView.Form.FieldHandler(form=self,
+                                                     field=field,
+                                                     original_value=original_value)
+            self._field_handler.append(handler)
+            return handler
 
     fields: Sequence[BaseField | str] = _field(default_factory=list)
     pk_field: BaseField | None = _field(default=None, init=False)
@@ -345,7 +412,9 @@ class BaseCrudView(BaseView):
         if data is None:
             raise HTTPException(status_code=404, detail=f"{self.title} with pk '{pk}' not found!")
 
-        # with ui.column().classes("w-full"):
+        # create form
+        form = self.Form()
+
         for field in fields:
             with ui.card(align_items="stretch").classes("w-full").props("flat bordered").tight() as card:
                 with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as label_section:
@@ -356,10 +425,12 @@ class BaseCrudView(BaseView):
 
                 with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as value_section:
                     # render value
-                    await field.form_value(value=data.get(field.name))
+                    await field.form_value(field_handler=form.add_field_handler(field=field,
+                                                                                original_value=data.get(field.name)))
 
             # card.classes("bg-red-100")
             # label_section.classes("bg-blue-100")
             # value_section.classes("bg-green-100")
 
+        ui.button("Save", on_click=lambda e: ui.notify("Save not implemented yet!")).bind_enabled_from(form, "correct")
         ui.button("Back", on_click=lambda e: ui.navigate.back())
