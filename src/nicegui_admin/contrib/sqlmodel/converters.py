@@ -169,9 +169,12 @@ class SqlModelFieldConverter(BaseSqlModelFieldConverter):
     def _string_common(cls,
                        *,
                        _type: Any,
+                       column: Column,
                        model_field_info: FieldInfo,
                        **kwargs: Any) -> Dict[str, Any]:
         field_kwargs = {}
+        if column.nullable:
+            field_kwargs["empty_is_none"] = True
         if isinstance(_type, String) and isinstance(_type.length, int) and _type.length > 0:
             field_kwargs["maxlength"] = _type.length
         return field_kwargs

@@ -200,6 +200,7 @@ class StringField(BaseField):
     maxlength: int | None = field(default=None)
     minlength: int | None = field(default=None)
     allowed_characters: str | None = field(default=None)
+    empty_is_none: bool = field(default=False)
 
     class LabelFormValue(str, Enum):
         LABEL = "label"
@@ -217,7 +218,7 @@ class StringField(BaseField):
                                     value: Any) -> bool:
         if await super().data_to_model_is_none(value):
             return True
-        if isinstance(value, str) and value.strip() == "":
+        if self.empty_is_none and isinstance(value, str) and value.strip() == "":
             return True
         return False
 
