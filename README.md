@@ -38,8 +38,8 @@ _Very early stage of development, but you can already check out the code and giv
     - [ ] validation
     - [ ] create in list view
   - edit
-    - [ ] edit view
-    - [ ] validation
+    - [x] edit view
+    - [x] validation
     - [ ] inline edit in list view
     - [ ] bulk edit
   - delete
