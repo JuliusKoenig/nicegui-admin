@@ -170,11 +170,11 @@ class BooleanField(BaseField):
     async def list_table_body_cell(self,
                                    table: ui.table) -> None:
         with table.cell(column_name=self.name):
-            ui.badge().props(''':label="props.value ? 'true' : 'false'" :color="props.value ? 'red' : 'green'"''').classes("text-bold")
+            ui.badge().props(''':label="props.value ? 'true' : 'false'" :color="props.value ? 'green' : 'red'"''').classes("text-bold")
 
     async def detail_value(self,
                            value: Any) -> None:
-        ui.badge(text="true" if value else "false", color="red" if value else "green").classes("text-bold")
+        ui.badge(text="true" if value else "false", color="green" if value else "red").classes("text-bold")
 
     async def form_value(self,
                          field_handler: "BaseCrudView.Form.FieldHandler") -> None:
