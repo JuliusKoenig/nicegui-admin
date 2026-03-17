@@ -64,14 +64,14 @@ class BaseCrudView(BaseView):
                          field: BaseField,
                          original_value: Any = None,
                          elements: dict[str, Any] | None = None,
-                         form_getter: Optional[Callable[[], Awaitable[Any]]] = None):
+                         form_getter: Optional[Callable[[], Any]] = None):
                 self._form: "BaseCrudView.Form" = form
                 self._field: BaseField = field
                 self._original_value: Any = original_value
                 if elements is None:
                     elements = {}
                 self.elements: dict[str, Any] | None = elements
-                self.form_getter: Optional[Callable[[], Awaitable[Any]]] = form_getter
+                self.form_getter: Optional[Callable[[], Any]] = form_getter
                 self._form_validator_result: None | str = None
 
             @property
@@ -108,6 +108,16 @@ class BaseCrudView(BaseView):
                 if handler.form_validator_result is not None:
                     return False
             return True
+
+        @property
+        def data(self) -> dict[str, Any]:
+            result = {}
+            for field_name, field_handler in self.field_handler.items():
+                if field_handler.form_getter is None:
+                    result[field_name] = field_handler.original_value
+                else:
+                    result[field_name] = field_handler.form_getter()
+            return result
 
         @property
         def field_handler(self) -> dict[str, "BaseCrudView.Form.FieldHandler"]:
@@ -428,9 +438,18 @@ class BaseCrudView(BaseView):
                     await field.form_value(field_handler=form.add_field_handler(field=field,
                                                                                 original_value=data.get(field.name)))
 
-            # card.classes("bg-red-100")
-            # label_section.classes("bg-blue-100")
-            # value_section.classes("bg-green-100")
+        async def save():
+            await self.edit(pk, data=form.data)
+            ui.notify("Saved!")
+            ui.navigate.reload()
 
-        ui.button("Save", on_click=lambda e: ui.notify("Save not implemented yet!")).bind_enabled_from(form, "correct")
-        ui.button("Back", on_click=lambda e: ui.navigate.back())
+        async def back():
+            ui.navigate.back()
+
+        async def save_and_back():
+            await save()
+            await back()
+
+        ui.button("Save", on_click=save).bind_enabled_from(form, "correct")
+        ui.button("Save and back", on_click=save_and_back).bind_enabled_from(form, "correct")
+        ui.button("Back", on_click=back)
