@@ -280,11 +280,83 @@ class SqlModelCrudView(BaseCrudView):
 
         return objs if len(objs) > 1 else objs[0]
 
+    async def edit_query(self,
+                         pk: str) -> Select:
+        """
+        Return a Select expression which is used for editing
+
+        :param pk: Primary key of the edit query
+        :return: SQLAlchemy Select expression
+        """
+
+        # select
+        statement = select(self.model)
+
+        # where
+        if isinstance(self._pk_column, tuple):
+            """
+            For composite primary keys, the pk parameter is a comma-separated string
+            representing the values of each primary key attribute.
+
+            For example, if the model has two primary keys (id1, id2):
+            - the `pk` will be: "val1,val2"
+            - the generated query: (id1 == val1 AND id2 == val2)
+            """
+            assert isinstance(self._pk_coerce, tuple)
+            clauses = []
+            for _pk_col, _coerce, _pk in zip(self._pk_column, self._pk_coerce, iterdecode(pk)):
+                if _coerce is not bool:
+                    clauses.append(_pk_col == _coerce(_pk))
+                else:
+                    clauses.append(_pk_col == (_pk == "True"))
+            statement = statement.where(and_(*clauses))
+        else:
+            assert isinstance(self._pk_coerce, type)
+            statement = statement.where(self._pk_column == self._pk_coerce(pk))
+
+        # join
+        # for field in self.get_fields_list(request, request.state.action): ToDo: check if needed
+        #     if isinstance(field, RelationField):
+        #         statement = statement.options(joinedload(getattr(self.model, field.name)))
+
+        return statement
+
     async def edit(self,
                    *pks: str,
                    data: dict[str, Any],
                    deserialization_fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
-        raise NotImplementedError()
+        with self.admin.session() as session:
+            # deserialize data
+            deserialized_data = await self._data_to_model(data=data,
+                                                          fields=deserialization_fields)
+            objs = []
+            for pk in pks:
+                # build query
+                statement = await self.detail_query(pk=pk)
+
+                # execute query
+                result = await run.io_bound(session.execute, statement)
+
+                # process result
+                result = result.scalars().unique().one_or_none()
+                if not result:
+                    raise ValueError(f"No such primary key: {pk}")
+
+                # update object
+                for key, value in deserialized_data.items():
+                    setattr(result, key, value)
+                objs.append(result)
+
+            # add to session and commit
+            for obj in objs:
+                session.add(obj)
+            session.commit()
+
+            # refresh objects
+            for obj in objs:
+                session.refresh(obj)
+
+        return objs if len(objs) > 1 else objs[0]
 
     async def delete(self,
                      *pks: str) -> bool | _list[bool]:
