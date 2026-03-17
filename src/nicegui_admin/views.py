@@ -441,14 +441,15 @@ class BaseCrudView(BaseView):
         async def save():
             await self.edit(pk, data=form.data)
             ui.notify("Saved!")
-            ui.navigate.reload()
+            ui.timer(1.0, ui.navigate.reload, once=True)
 
         async def back():
             ui.navigate.back()
 
         async def save_and_back():
-            await save()
-            await back()
+            await self.edit(pk, data=form.data)
+            ui.notify("Saved!")
+            ui.timer(1.0, ui.navigate.back, once=True)
 
         ui.button("Save", on_click=save).bind_enabled_from(form, "correct")
         ui.button("Save and back", on_click=save_and_back).bind_enabled_from(form, "correct")
