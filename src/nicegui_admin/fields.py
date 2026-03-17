@@ -137,7 +137,10 @@ class BaseField:
             if self.icon:
                 ui.icon(name=self.icon).classes("field-label-header-icon")
             with ui.column().classes("gap-0"):
-                ui.label(text=self.label).classes("field-label-header-text")
+                with ui.row(align_items="start", wrap=False).classes("gap-1"):
+                    ui.label(text=self.label).classes("field-label-header-text")
+                    if self.required:
+                        ui.label(text="(required)").classes("field-label-sub-header-text")
                 if self.help_text:
                     ui.label(self.help_text).classes("field-label-sub-header-text")
 

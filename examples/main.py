@@ -35,8 +35,7 @@ class MyModel(SQLModel, table=True):
     float_attr1: float = Field(description="Float attribute 1")
     float_attr2: float = Field(default=0.0,
                                description="Float attribute 2")
-    string_attr1: str = Field(description="String attribute 1",
-                              sa_column=Column(String(123)))
+    string_attr1: str = Field(description="String attribute 1")
     string_attr2: str = Field(default="",
                               description="String attribute 2")
     uuid_attr1: uuid.UUID = Field(description="UUID attribute 1")
