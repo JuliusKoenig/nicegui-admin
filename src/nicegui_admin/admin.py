@@ -543,9 +543,9 @@ class BaseAdmin(SubPageRouter):
                                      prefix=view_instance.path)
 
     async def root(self) -> None:
-        await super().root()
-
         dark_mode = ui.dark_mode()
-
         ui.button("Toggle Dark Mode",
                   on_click=lambda: dark_mode.toggle())
+
+        await super().root()
+

@@ -374,6 +374,9 @@ class BaseCrudView(BaseView):
     @sub_page("/detail/{pk}")
     async def detail_page(self,
                           pk: str) -> None:
+        ui.button("Back", on_click=lambda e: ui.navigate.back())
+        ui.button("Edit", on_click=lambda e: ui.navigate.to(f"{self.prefix}/edit/{pk}"))
+
         # get fields
         fields = await self.get_fields(mode="detail")
 
@@ -425,19 +428,6 @@ class BaseCrudView(BaseView):
         # create form
         form = self.Form()
 
-        for field in fields:
-            with ui.card(align_items="stretch").classes("w-full").props("flat bordered").tight() as card:
-                with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as label_section:
-                    # render label
-                    await field.form_label()
-
-                ui.separator()
-
-                with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as value_section:
-                    # render value
-                    await field.form_value(field_handler=form.add_field_handler(field=field,
-                                                                                original_value=data.get(field.name)))
-
         async def save():
             await self.edit(pk, data=form.data)
             ui.notify("Saved!")
@@ -454,3 +444,16 @@ class BaseCrudView(BaseView):
         ui.button("Save", on_click=save).bind_enabled_from(form, "correct")
         ui.button("Save and back", on_click=save_and_back).bind_enabled_from(form, "correct")
         ui.button("Back", on_click=back)
+
+        for field in fields:
+            with ui.card(align_items="stretch").classes("w-full").props("flat bordered").tight() as card:
+                with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as label_section:
+                    # render label
+                    await field.form_label()
+
+                ui.separator()
+
+                with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as value_section:
+                    # render value
+                    await field.form_value(field_handler=form.add_field_handler(field=field,
+                                           original_value=data.get(field.name)))
