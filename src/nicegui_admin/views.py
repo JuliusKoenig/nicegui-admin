@@ -62,17 +62,14 @@ class BaseCrudView(BaseView):
             def __init__(self,
                          form: "BaseCrudView.Form",
                          field: BaseField,
-                         original_value: Any = None,
-                         elements: dict[str, Any] | None = None,
-                         form_getter: Optional[Callable[[], Any]] = None):
+                         value: Any = None):
                 self._form: "BaseCrudView.Form" = form
                 self._field: BaseField = field
-                self._original_value: Any = original_value
-                if elements is None:
-                    elements = {}
-                self.elements: dict[str, Any] | None = elements
-                self.form_getter: Optional[Callable[[], Any]] = form_getter
+                self._original_value: Any = value
+                self.use_default: bool = False
                 self._form_validator_result: None | str = None
+                self._value: Any = None
+                self.value = value
 
             @property
             def form(self) -> "BaseCrudView.Form":
@@ -85,6 +82,23 @@ class BaseCrudView(BaseView):
             @property
             def original_value(self) -> Any:
                 return self._original_value
+
+            @property
+            def changed(self) -> bool:
+                return self._value != self.original_value
+
+            @property
+            def value(self) -> Any:
+                if self.changed:
+                    return self._value
+                else:
+                    return self.original_value
+
+            @value.setter
+            def value(self, value: Any):
+                self._value = value
+                self._form_validator_result = None
+                self.use_default = False
 
             @property
             def form_validator(self) -> Optional[Callable[[Any], Awaitable[None | str]]]:
@@ -113,10 +127,8 @@ class BaseCrudView(BaseView):
         def data(self) -> dict[str, Any]:
             result = {}
             for field_name, field_handler in self.field_handler.items():
-                if field_handler.form_getter is None:
-                    result[field_name] = field_handler.original_value
-                else:
-                    result[field_name] = field_handler.form_getter()
+                if not field_handler.use_default:
+                    result[field_name] = field_handler.value
             return result
 
         @property
@@ -125,12 +137,12 @@ class BaseCrudView(BaseView):
 
         def add_field_handler(self,
                               field: BaseField,
-                              original_value: Any = None) -> "BaseCrudView.Form.FieldHandler":
+                              value: Any = None) -> "BaseCrudView.Form.FieldHandler":
             if field.name in self.field_handler:
                 raise RuntimeError(f"Field {field} already exists")
             handler = BaseCrudView.Form.FieldHandler(form=self,
                                                      field=field,
-                                                     original_value=original_value)
+                                                     value=value)
             self._field_handler.append(handler)
             return handler
 
@@ -320,6 +332,8 @@ class BaseCrudView(BaseView):
                         limit: int = 100,
                         where: WHERE = None,
                         order_by: ORDER_BY = None) -> None:
+        ui.button("Create", on_click=lambda e: ui.navigate.to(f"{self.prefix}/create"))
+
         # ToDo: remove after testing
         await self.create({
             "boolean_attr1": True,
@@ -410,9 +424,6 @@ class BaseCrudView(BaseView):
                         # render value
                         await field.detail_value(value=data.get(field.name))
 
-        ui.button("Back", on_click=lambda e: ui.navigate.back())
-        ui.button("Edit", on_click=lambda e: ui.navigate.to(f"{self.prefix}/edit/{pk}"))
-
     @sub_page("/edit/{pk}")
     async def edit_page(self,
                         pk: str) -> None:
@@ -447,13 +458,16 @@ class BaseCrudView(BaseView):
 
         for field in fields:
             with ui.card(align_items="stretch").classes("w-full").props("flat bordered").tight() as card:
+                field_handler = form.add_field_handler(field=field, value=data.get(field.name))
+
                 with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as label_section:
                     # render label
-                    await field.form_label()
+                    await field.form_label(field_handler=field_handler)
 
-                ui.separator()
+                ui.separator().bind_visibility_from(field_handler, "use_default", backward=lambda v: not v)
 
                 with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as value_section:
                     # render value
-                    await field.form_value(field_handler=form.add_field_handler(field=field,
-                                           original_value=data.get(field.name)))
+                    await field.form_value(field_handler=field_handler)
+
+                value_section.bind_visibility_from(field_handler, "use_default", backward=lambda v: not v)

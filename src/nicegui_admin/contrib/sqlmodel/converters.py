@@ -12,6 +12,7 @@ from sqlalchemy.orm import (
 )
 from sqlalchemy.exc import NoInspectionAvailable
 from sqlalchemy.sql.elements import Label
+from sqlalchemy.sql.schema import ScalarElementColumnDefault
 from sqlmodel.main import FieldInfo, SQLModel
 
 from nicegui_admin.contrib.sqlmodel.exceptions import NotSupportedColumn, InvalidModelError
@@ -153,8 +154,21 @@ class SqlModelFieldConverter(BaseSqlModelFieldConverter):
                 model_field_info: FieldInfo,
                 **kwargs: Any) -> Dict[str, Any]:
         field_kwargs = {"type": kwargs["_type"],
-                        "name": name,
-                        "required": (not column.nullable and not isinstance(column.type, (Boolean,)) and not column.default and not column.server_default)}
+                        "name": name}
+        if column.nullable:
+            field_kwargs["required"] = False
+        else:
+            field_kwargs["required"] = True
+        if column.default:
+            if isinstance(column.default, ScalarElementColumnDefault):
+                field_kwargs["default"] = BaseField.Default.STATIC
+                field_kwargs["default_value"] = column.default.arg
+            else:
+                field_kwargs["default"] = BaseField.Default.DYNAMIC
+        elif column.server_default:
+            field_kwargs["default"] = BaseField.Default.DYNAMIC
+        else:
+            field_kwargs["default"] = None
         if model_field_info.title:
             field_kwargs["label"] = model_field_info.title
         if model_field_info.description:

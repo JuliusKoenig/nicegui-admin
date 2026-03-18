@@ -31,6 +31,8 @@ class BaseField:
     :param searchable: Indicate if the fields is searchable
     :param orderable: Indicate if the fields is orderable
     :param exclude: Control field visibility in list page.
+
+    ToDo: check if all parameters are used, document leftovers and remove unused ones.
     """
 
     name: str = field()
@@ -40,6 +42,13 @@ class BaseField:
     help_text: str | None = field(default=None)
     key: str | Unset = field(default=Unset)
     required: bool = field(default=False)
+
+    class Default(str, Enum):
+        STATIC = "static"
+        DYNAMIC = "dynamic"
+
+    default: Default | None = field(default=None)
+    default_value: Any | None = field(default=None)
     align: str | None = field(default="right")
     searchable: bool = field(default=True)
     orderable: bool = field(default=True)
@@ -132,7 +141,8 @@ class BaseField:
                            value: Any) -> None:
         ui.label(text=value)
 
-    async def form_label(self) -> None:
+    async def form_label(self,
+                         field_handler: "BaseCrudView.Form.FieldHandler") -> None:
         with ui.row(align_items="center", wrap=False):
             if self.icon:
                 ui.icon(name=self.icon).classes("field-label-header-icon")
@@ -140,14 +150,19 @@ class BaseField:
                 with ui.row(align_items="start", wrap=False).classes("gap-1"):
                     ui.label(text=self.label).classes("field-label-header-text")
                     if self.required:
-                        ui.label(text="(required)").classes("field-label-sub-header-text")
+                        ui.label(text="(required)").classes("field-form-label-required-text")
+                    if self.default:
+                        use_default = ui.checkbox(text=f"Use default",
+                                                  value=field_handler.use_default).classes("field-form-label-default-text").props("dense size=xs")
+                        if self.default == self.Default.STATIC:
+                            use_default.text += f": {self.default_value}"
+                        use_default.bind_value(field_handler, "use_default")
                 if self.help_text:
                     ui.label(self.help_text).classes("field-label-sub-header-text")
 
     async def form_value(self,
                          field_handler: "BaseCrudView.Form.FieldHandler") -> None:
-        field_handler.elements["label"] = ui.label(text=field_handler.original_value)
-        field_handler.form_getter = lambda: field_handler.elements["label"].text
+        ui.label(text=field_handler.original_value).bind_text(field_handler, "value")
 
     async def form_value_validator(self,
                                    value: Any) -> None | str:
@@ -181,8 +196,7 @@ class BooleanField(BaseField):
 
     async def form_value(self,
                          field_handler: "BaseCrudView.Form.FieldHandler") -> None:
-        field_handler.elements["switch"] = ui.switch(value=field_handler.original_value)
-        field_handler.form_getter = lambda: field_handler.elements["switch"].value
+        ui.switch(value=field_handler.original_value).bind_value(field_handler, "value")
 
 
 @dataclass
@@ -232,14 +246,13 @@ class StringField(BaseField):
                 value_label = self.help_text
             else:
                 value_label = self.label_form_value
-        field_handler.elements["input"] = ui.input(value=field_handler.original_value,
+        input_element = ui.input(value=field_handler.original_value,
                                                    label=value_label,
                                                    placeholder=self.placeholder,
-                                                   validation=field_handler.form_validator)
+                                                   validation=field_handler.form_validator).bind_value(field_handler, "value")
         if self.clearable:
-            field_handler.elements["input"].props("clearable")
-        field_handler.form_getter = lambda: field_handler.elements["input"].value
-        field_handler.elements["input"].validate(return_result=False)
+            input_element.props("clearable")
+        input_element.validate(return_result=False)
 
     async def form_value_validator(self,
                                    value: Any) -> None | str:

@@ -30,6 +30,21 @@ body.body--dark {
     font-size: 12px;
 }
 
+.field-form-label-required-text {
+    color: var(--header-font-color);
+    font-weight: 400;
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.field-form-label-default-text {
+    color: var(--header-font-color);
+    font-weight: 400;
+    font-size: 12px;
+    margin-top: 2px;
+    margin-left: 4px;
+}
+
 .table-sticky-header {
     max-height: calc(100vh - 2rem);
 }
