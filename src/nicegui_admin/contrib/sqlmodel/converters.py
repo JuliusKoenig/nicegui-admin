@@ -160,9 +160,9 @@ class SqlModelFieldConverter(BaseSqlModelFieldConverter):
         if model_field_info.description:
             field_kwargs["help_text"] = model_field_info.description
         elif column.comment:
-            field_kwargs["comment"] = column.comment
+            field_kwargs["help_text"] = column.comment
         elif column.doc:
-            field_kwargs["comment"] = column.doc
+            field_kwargs["help_text"] = column.doc
         return field_kwargs
 
     @classmethod
