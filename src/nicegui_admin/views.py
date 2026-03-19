@@ -389,7 +389,7 @@ class BaseCrudView(BaseView):
             result.append(field)
         return result
 
-    @sub_page("/")
+    @sub_page("/list")
     async def list_page(self,
                         offset: int = 0,
                         limit: int = 100,
@@ -487,9 +487,13 @@ class BaseCrudView(BaseView):
                         # render value
                         await field.detail_value(value=data.get(field.name))
 
+    @sub_page("/create")
     @sub_page("/edit/{pk}")
     async def edit_page(self,
-                        pk: str) -> None:
+                        pk: str | None = None) -> None:
+        if pk is None:
+            raise NotImplementedError("create page is not implemented yet")
+
         # get fields
         fields = await self.get_fields(mode="form")
 

@@ -6,8 +6,8 @@ from typing import Any, Callable, TYPE_CHECKING, Union
 
 from fastapi import HTTPException
 from nicegui import ui
+from nicegui.page_arguments import RouteMatch
 
-from nicegui_admin.elements.sub_page import SubPages
 from nicegui_admin.helpers import DecoratedMethodClass, decorate, Unset, prettify_name
 from nicegui_admin.types import SyncOrAsyncMethod
 
@@ -43,8 +43,6 @@ def sub_page(path: str,
                     path=path,
                     title=title,
                     icon=icon)
-
-
 
 
 @dataclass
@@ -204,7 +202,31 @@ class BaseAdmin(DecoratedMethodClass):
         ui.button("Toggle Dark Mode",
                   on_click=lambda: dark_mode.toggle())
 
-        SubPages(self).classes("w-full")
+        def _render_404(_self, ) -> None:
+            raise HTTPException(status_code=404, detail=f"The page '{_self._router.current_path}' does not exist.")
+
+        def _render_error(_self, error: Exception) -> None:
+            with _self.clear():
+                self.error_page(error=error,
+                                buttons=True,
+                                log=True)
+
+        def _set_match(_self, match: RouteMatch | None) -> None:
+            try:
+                ui.sub_pages._set_match(_self, match)
+            except HTTPException as e:
+                _self._render_error(e)
+            _self.has_404 = False
+
+        routes = {}  # self.path: root}
+        for path, kwargs in self.sub_pages.items():
+            builder: SyncOrAsyncMethod = kwargs["builder"]
+            routes[path] = builder
+        type(f"{self.__class__.__name__}.{self.root.__name__}.{ui.sub_pages.__name__}",
+             (ui.sub_pages,),
+             {"_render_404": _render_404,
+              "_render_error": _render_error,
+              "_set_match": _set_match})(routes=routes).classes("w-full")
 
     def error_page(self,
                    status_code: int | Unset = Unset,
@@ -287,7 +309,7 @@ class BaseAdmin(DecoratedMethodClass):
             # navigation buttons
             if buttons:
                 with ui.row().classes("mt-4"):
-                    ui.button("Go Home", icon="home", on_click=lambda: ui.navigate.to(self.admin.prefix)).props("outline")
+                    ui.button("Go Home", icon="home", on_click=lambda: ui.navigate.to(self.path)).props("outline")
                     ui.button("Go Back", icon="arrow_back", on_click=ui.navigate.back).props("outline")
 
         # log error
