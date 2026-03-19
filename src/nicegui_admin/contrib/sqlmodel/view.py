@@ -278,7 +278,15 @@ class SqlModelCrudView(BaseCrudView):
             for obj in objs:
                 session.refresh(obj)
 
-        return objs if len(objs) > 1 else objs[0]
+            # serialize objects
+            obj_serialized_dicts = []
+            for obj in objs:
+                obj_dict = obj.model_dump()
+                obj_serialized_dict = await self._data_from_model(data=obj_dict,
+                                                                  fields=fields)
+                obj_serialized_dicts.append(obj_serialized_dict)
+
+        return obj_serialized_dicts if len(obj_serialized_dicts) > 1 else obj_serialized_dicts[0]
 
     async def edit_query(self,
                          pk: str) -> Select:
@@ -356,7 +364,15 @@ class SqlModelCrudView(BaseCrudView):
             for obj in objs:
                 session.refresh(obj)
 
-        return objs if len(objs) > 1 else objs[0]
+            # serialize objects
+            obj_serialized_dicts = []
+            for obj in objs:
+                obj_dict = obj.model_dump()
+                obj_serialized_dict = await self._data_from_model(data=obj_dict,
+                                                                  fields=fields)
+                obj_serialized_dicts.append(obj_serialized_dict)
+
+        return obj_serialized_dicts if len(obj_serialized_dicts) > 1 else obj_serialized_dicts[0]
 
     async def delete(self,
                      *pks: str) -> bool | _list[bool]:
