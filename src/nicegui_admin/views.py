@@ -5,7 +5,7 @@ from abc import abstractmethod
 from typing import Any, Sequence
 
 from fastapi import HTTPException
-from nicegui import ui
+from nicegui import ui, binding
 
 from nicegui_admin.fields import BaseField
 from nicegui_admin.helpers import Unset, slugify_name, prettify_name, wrapped_method
@@ -59,6 +59,9 @@ class BaseCrudView(BaseView):
 
     class Form:
         class FieldHandler:
+            value: Any = binding.BindableProperty()
+            use_default: bool = binding.BindableProperty()
+
             def __init__(self,
                          form: "BaseCrudView.Form",
                          field: BaseField,
@@ -66,10 +69,12 @@ class BaseCrudView(BaseView):
                 self._form: "BaseCrudView.Form" = form
                 self._field: BaseField = field
                 self._original_value: Any = value
-                self.use_default: bool = False
                 self._form_validator_result: None | str = None
-                self._value: Any = None
                 self.value = value
+                if self.value is None:
+                    self.use_default = True
+                else:
+                    self.use_default = False
 
             @property
             def form(self) -> "BaseCrudView.Form":
@@ -84,51 +89,40 @@ class BaseCrudView(BaseView):
                 return self._original_value
 
             @property
-            def changed(self) -> bool:
-                return self._value != self.original_value
-
-            @property
-            def value(self) -> Any:
-                if self.changed:
-                    return self._value
-                else:
-                    return self.original_value
-
-            @value.setter
-            def value(self, value: Any):
-                self._value = value
-                self._form_validator_result = None
-                self.use_default = False
-
-            @property
             def form_validator(self) -> Optional[Callable[[Any], Awaitable[None | str]]]:
                 async def wrapper(value: Any) -> None | str:
                     result = await self.field.form_value_validator(value=value)
                     self._form_validator_result = result
-                    return result
 
+                    # update correctness of form
+                    correct = True
+                    for handler in self.form.field_handler.values():
+                        if handler.form_validator_result is not None:
+                            correct = False
+                    self.form.correct = correct
+
+                    return result
                 return wrapper
 
             @property
             def form_validator_result(self) -> None | str:
                 return self._form_validator_result
 
+        correct: bool = binding.BindableProperty()
+
         def __init__(self):
             self._field_handler = []
-
-        @property
-        def correct(self) -> bool:
-            for handler in self._field_handler:
-                if handler.form_validator_result is not None:
-                    return False
-            return True
+            self.correct = True
 
         @property
         def data(self) -> dict[str, Any]:
             result = {}
             for field_name, field_handler in self.field_handler.items():
                 if not field_handler.use_default:
-                    result[field_name] = field_handler.value
+                    if field_handler.value != field_handler.original_value:
+                        result[field_name] = field_handler.value
+                    else:
+                        result[field_name] = field_handler.original_value
             return result
 
         @property
@@ -388,7 +382,7 @@ class BaseCrudView(BaseView):
     @sub_page("/detail/{pk}")
     async def detail_page(self,
                           pk: str) -> None:
-        ui.button("Back", on_click=lambda e: ui.navigate.back())
+        ui.button("Back", on_click=lambda e: ui.navigate.to(f"{self.prefix}/"))
         ui.button("Edit", on_click=lambda e: ui.navigate.to(f"{self.prefix}/edit/{pk}"))
 
         # get fields
@@ -440,17 +434,21 @@ class BaseCrudView(BaseView):
         form = self.Form()
 
         async def save():
-            await self.edit(pk, data=form.data)
+            nonlocal pk, data
+            data = await self.edit(pk, data=form.data)
+            pk = data.get("_pk")
             ui.notify("Saved!")
-            ui.timer(1.0, ui.navigate.reload, once=True)
+            ui.navigate.to(f"{self.prefix}/edit/{pk}")
 
         async def back():
             ui.navigate.back()
 
         async def save_and_back():
-            await self.edit(pk, data=form.data)
+            nonlocal pk, data
+            data = await self.edit(pk, data=form.data)
+            pk = data.get("_pk")
             ui.notify("Saved!")
-            ui.timer(1.0, ui.navigate.back, once=True)
+            ui.navigate.to(f"{self.prefix}/detail/{pk}")
 
         ui.button("Save", on_click=save).bind_enabled_from(form, "correct")
         ui.button("Save and back", on_click=save_and_back).bind_enabled_from(form, "correct")

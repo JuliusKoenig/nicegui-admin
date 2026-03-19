@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any, Sequence, Union, TYPE_CHECKING
 
 from nicegui import run
+from pydantic_core import PydanticUndefined
 from sqlmodel import SQLModel, select
 from sqlalchemy import String, and_, cast, func, or_, select
 from sqlalchemy.orm import InstrumentedAttribute, Mapper, RelationshipProperty
@@ -351,8 +352,17 @@ class SqlModelCrudView(BaseCrudView):
                     raise ValueError(f"No such primary key: {pk}")
 
                 # update object
-                for key, value in deserialized_data.items():
-                    setattr(result, key, value)
+                for model_field_name, model_field in self.model.model_fields.items():
+                    if model_field_name in deserialized_data:
+                        value = deserialized_data[model_field_name]
+                    else:
+                        if model_field.default != PydanticUndefined:
+                            value = model_field.default
+                        elif model_field.default_factory:
+                            value = model_field.default_factory()
+                        else:
+                            value = None
+                    setattr(result, model_field_name, value)
                 objs.append(result)
 
             # add to session and commit
