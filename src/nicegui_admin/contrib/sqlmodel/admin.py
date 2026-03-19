@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from typing import Generator
 
 from sqlalchemy import Engine
@@ -8,43 +9,23 @@ from nicegui_admin.admin import BaseAdmin
 from nicegui_admin.helpers import Unset
 
 
+@dataclass
 class SqlModelAdmin(BaseAdmin):
     """
     Class for implementing Admin interface with SQLModel.
+
+    :param engine: SQLAlchemy Engine instance or database URL.
     """
 
-    def __init__(self,
-                 debug: bool | Unset = Unset,
-                 prefix: str | Unset = Unset,
-                 title: str | Unset = Unset,
-                 engine: Engine | str = Unset):
+    engine: Engine | str = field(default=Unset, metadata={"immutable": True})
 
-        """
-        :param title: Admin title.
-        :param debug: Enable debug mode. If True, error pages will display detailed error information and stack traces.
-        :param prefix: The path prefix for this SubPageApp. Should start with '/' and should not end with '/'.
-        """
-
-        super().__init__(debug=debug,
-                         prefix=prefix,
-                         title=title)
-
-        engine = Unset.resolve(engine, "sqlite:///database.db")
-        if type(engine) is str:
-            engine = create_engine(url=engine,
-                                   echo=True,  # Todo: remove echo=True in production
-                                   connect_args={"check_same_thread": False})
-        self._engine = engine
-
-    @property
-    def engine(self) -> Engine:
-        """
-        SQLAlchemy Engine instance used for database connection.
-
-        :return: SQLAlchemy Engine instance.
-        """
-
-        return self._engine
+    def __post_init__(self):
+        self.engine = Unset.resolve(self.engine, "sqlite:///database.db")
+        if type(self.engine) is str:
+            self.engine = create_engine(url=self.engine,
+                                        echo=True,  # Todo: remove echo=True in production
+                                        connect_args={"check_same_thread": False})
+        super().__post_init__()
 
     def get_session(self) -> Session:
         """

@@ -1,5 +1,6 @@
 import uuid
 from dataclasses import dataclass, field as _field
+from pathlib import Path
 from typing import Union, Optional, Callable, Awaitable
 from abc import abstractmethod
 from typing import Any, Sequence
@@ -8,18 +9,18 @@ from fastapi import HTTPException
 from nicegui import ui, binding
 
 from nicegui_admin.fields import BaseField
-from nicegui_admin.helpers import Unset, slugify_name, prettify_name, wrapped_method
-from nicegui_admin.admin import BaseAdmin, sub_page, SubPageRouter
-from nicegui_admin.types import ExportType
+from nicegui_admin.helpers import Unset, slugify_name, prettify_name, wrapped_method, DecoratedMethodClass
+from nicegui_admin.admin import BaseAdmin, sub_page
+from nicegui_admin.types import ExportType, SyncOrAsyncMethod
 
 
 @dataclass
-class BaseView(SubPageRouter):
+class BaseView(DecoratedMethodClass):
     """
     Base class for all views.
 
-    :param path: Path to the view. If not provided, it will be generated from the class name.
-    :param title: Title of the view to be displayed.
+    :param path: Path to the view. Should start with '/' and should not end with '/'. If not provided, it will be inferred from the class name.
+    :param title: Title of the view to be displayed. If not provided, it will be inferred from the class name.
     :param icon: Icon to be displayed for this view.
     """
 
@@ -29,10 +30,13 @@ class BaseView(SubPageRouter):
     icon: str | Unset | None = _field(default=Unset, repr=False)
 
     def __post_init__(self):
-        SubPageRouter.__init__(self)
         self.path: str = Unset.resolve(self.path, slugify_name(self.__class__.__name__))
         if not self.path.startswith("/"):
             self.path = "/" + self.path
+        if self.path.endswith("/"):
+            self.path = self.path[:-1]
+        if self.path == "":
+            raise ValueError("path cannot be empty")
         self.title: str = Unset.resolve(self.title, prettify_name(self.__class__.__name__))
         self.title_plural: str = Unset.resolve(self.title_plural, prettify_name(self.__class__.__name__))
         self.icon = Unset.resolve(self.icon, None)
@@ -40,6 +44,71 @@ class BaseView(SubPageRouter):
     @property
     def admin(self) -> Union[BaseAdmin, Any, None]:
         return getattr(self, "_admin", None)
+
+
+    @property
+    def sub_pages(self) -> dict[str, dict[str, Any]]:
+        """
+        All SubPages added to this SubPageRouter using the @sub_page decorator or the add_sub_page method.
+        :return: A dictionary where the keys are the paths of the SubPages and the values
+         are dictionaries containing the builder function and attributes of the SubPages, such as title and icon.
+        """
+
+        sub_pages = {}
+        for builder, kwargs in self.__decorated_methods__.get("sub_page", {}).items():
+            path = self.path + kwargs["path"]
+            if path.endswith("/"):
+                path = path[:-1]
+            title = Unset.resolve(kwargs["title"], prettify_name(builder.__name__))
+            icon = kwargs["icon"]
+            sub_pages[path] = {"builder": builder,
+                               "title": title,
+                               "icon": icon}
+
+        return sub_pages
+
+    def sub_page(self,
+                 path: str,
+                 *,
+                 title: str | None = Unset,
+                 icon: str | Path | None = None) -> SyncOrAsyncMethod:
+        """
+        Decorator for adding a SubPage to the SubPage router.
+        Use this decorator after instantiating the SubPage router to add builder functions for the SubPages.
+
+        :param path: Path of the SubPage. Should be unique among all SubPages added to the SubPage router.
+        :param title: Title of the SubPage. If not provided, the title will be inferred from the builder function name.
+        :param icon: Icon of the SubPage. Can be either a URL or a local file path. If not provided, no icon will be set for the SubPage.
+        :return: Decorator function that takes a builder function and adds it as a SubPage to the SubPage router.
+        """
+
+        return self.__decorate__("sub_page",
+                                 path=path,
+                                 title=title,
+                                 icon=icon)
+
+    # rename favicon to icon
+    def add_sub_page(self,
+                     builder: SyncOrAsyncMethod,
+                     path: str,
+                     *,
+                     title: str | None = Unset,
+                     icon: str | Path | None = None) -> None:
+        """
+        Add a SubPage to the SubPage router.
+
+        :param builder: Builder function for the SubPage. Can be either a regular function or an async function that builds the page content when called.
+        :param path: Path of the SubPage. Should be unique among all SubPages added to the SubPage router.
+        :param title: Title of the SubPage. If not provided, the title will be inferred from the builder function name.
+        :param icon: Icon of the SubPage. Can be either a URL or a local file path. If not provided, no icon will be set for the SubPage.
+        :return: None
+        """
+
+        self.__add_decoration__(builder,
+                                "sub_page",
+                                path=path,
+                                title=title,
+                                icon=icon)
 
 
 # ToDo: implement DropDown
@@ -326,7 +395,7 @@ class BaseCrudView(BaseView):
                         limit: int = 100,
                         where: WHERE = None,
                         order_by: ORDER_BY = None) -> None:
-        ui.button("Create", on_click=lambda e: ui.navigate.to(f"{self.prefix}/create"))
+        ui.button("Create", on_click=lambda e: ui.navigate.to(f"{self.admin.path}{self.path}/create"))
 
         # ToDo: remove after testing
         await self.create({
@@ -377,13 +446,13 @@ class BaseCrudView(BaseView):
                 await field.list_table_body_cell(table=table)
 
         # setup event handlers
-        table.on("row-click", lambda e: ui.navigate.to(f"{self.prefix}/detail/{e.args[1]['_pk']}"))
+        table.on("row-click", lambda e: ui.navigate.to(f"{self.admin.path}{self.path}/detail/{e.args[1]['_pk']}"))
 
     @sub_page("/detail/{pk}")
     async def detail_page(self,
                           pk: str) -> None:
-        ui.button("Back", on_click=lambda e: ui.navigate.to(f"{self.prefix}/"))
-        ui.button("Edit", on_click=lambda e: ui.navigate.to(f"{self.prefix}/edit/{pk}"))
+        ui.button("Back", on_click=lambda e: ui.navigate.to(f"{self.admin.path}{self.path}/"))
+        ui.button("Edit", on_click=lambda e: ui.navigate.to(f"{self.admin.path}{self.path}/edit/{pk}"))
 
         # get fields
         fields = await self.get_fields(mode="detail")
@@ -438,7 +507,7 @@ class BaseCrudView(BaseView):
             data = await self.edit(pk, data=form.data)
             pk = data.get("_pk")
             ui.notify("Saved!")
-            ui.navigate.to(f"{self.prefix}/edit/{pk}")
+            ui.navigate.to(f"{self.admin.path}{self.path}/edit/{pk}")
 
         async def back():
             ui.navigate.back()
@@ -448,7 +517,7 @@ class BaseCrudView(BaseView):
             data = await self.edit(pk, data=form.data)
             pk = data.get("_pk")
             ui.notify("Saved!")
-            ui.navigate.to(f"{self.prefix}/detail/{pk}")
+            ui.navigate.to(f"{self.admin.path}{self.path}/detail/{pk}")
 
         ui.button("Save", on_click=save).bind_enabled_from(form, "correct")
         ui.button("Save and back", on_click=save_and_back).bind_enabled_from(form, "correct")
