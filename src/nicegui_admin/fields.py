@@ -215,7 +215,6 @@ class StringField(BaseField):
     :param clearable: Whether the input field can be cleared by clicking the clear button.
     """
 
-    icon: str | None = field(default="short_text")
     maxlength: int | None = field(default=None)
     minlength: int | None = field(default=None)
     allowed_characters: str | None = field(default=None)
@@ -228,6 +227,9 @@ class StringField(BaseField):
     label_form_value: None | LabelFormValue | str = field(default=None)
     placeholder: str | None = field(default=None)
     clearable: bool = field(default=True)
+    # prefix:	a prefix to prepend to the displayed value
+    # suffix:	a suffix to append to the displayed value
+    icon: str | None = field(default="short_text")
     cast_type: tuple[_type] | None = field(default=(str,))
 
     async def data_from_model_none(self) -> str:
