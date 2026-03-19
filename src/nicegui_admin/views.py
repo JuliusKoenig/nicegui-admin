@@ -291,26 +291,26 @@ class BaseCrudView(BaseView):
                    limit: int = 100,
                    where: WHERE = None,
                    order_by: ORDER_BY = None,
-                   serialization_fields: Sequence[BaseField] | None = None) -> _list[dict[str, Any]]:
+                   fields: Sequence[BaseField] | None = None) -> _list[dict[str, Any]]:
         raise NotImplementedError()
 
     @wrapped_method
     async def detail(self,
                      pk: str,
-                     serialization_fields: Sequence[BaseField] | None = None) -> dict[str, Any] | None:
+                     fields: Sequence[BaseField] | None = None) -> dict[str, Any] | None:
         raise NotImplementedError()
 
     @abstractmethod
     async def create(self,
                      *data: dict[str, Any],
-                     deserialization_fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
+                     fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
         raise NotImplementedError()
 
     @abstractmethod
     async def edit(self,
                    *pks: str,
                    data: dict[str, Any],
-                   deserialization_fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
+                   fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
         raise NotImplementedError()
 
     @abstractmethod
@@ -360,7 +360,7 @@ class BaseCrudView(BaseView):
                                limit=limit,
                                where=where,
                                order_by=order_by,
-                               serialization_fields=fields)
+                               fields=fields)
 
         # build table
         table = ui.table(columns=[{"name": field.name,
@@ -396,7 +396,7 @@ class BaseCrudView(BaseView):
 
         # get data
         data = await self.detail(pk=pk,
-                                 serialization_fields=fields)
+                                 fields=fields)
         if data is None:
             raise HTTPException(status_code=404, detail=f"{self.title} with pk '{pk}' not found!")
 
@@ -432,7 +432,7 @@ class BaseCrudView(BaseView):
 
         # get data
         data = await self.detail(pk=pk,
-                                 serialization_fields=fields)
+                                 fields=fields)
         if data is None:
             raise HTTPException(status_code=404, detail=f"{self.title} with pk '{pk}' not found!")
 

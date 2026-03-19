@@ -173,23 +173,23 @@ class SqlModelCrudView(BaseCrudView):
                    limit: int = 100,
                    where: WHERE = None,
                    order_by: ORDER_BY = None,
-                   serialization_fields: Sequence[BaseField] | None = None) -> _list[dict[str, Any]]:
+                   fields: Sequence[BaseField] | None = None) -> _list[dict[str, Any]]:
         with self.admin.session() as session:
             # build query
             statement = await self.list_query()
 
             # execute query
-            result = await run.io_bound(session.execute, statement)
+            objs = await run.io_bound(session.execute, statement)
 
-            # process result
-            result = result.scalars().unique().all()
+            # process objects
+            objs = objs.scalars().unique().all()
 
-            # serialize result
+            # serialize objects
             obj_serialized_dicts = []
-            for obj in result:
+            for obj in objs:
                 obj_dict = obj.model_dump()
                 obj_serialized_dict = await self._data_from_model(data=obj_dict,
-                                                                  fields=serialization_fields)
+                                                                  fields=fields)
                 obj_serialized_dicts.append(obj_serialized_dict)
 
             return obj_serialized_dicts
@@ -237,35 +237,35 @@ class SqlModelCrudView(BaseCrudView):
 
     async def detail(self,
                      pk: str,
-                     serialization_fields: Sequence[BaseField] | None = None) -> dict[str, Any] | None:
+                     fields: Sequence[BaseField] | None = None) -> dict[str, Any] | None:
         with self.admin.session() as session:
             # build query
             statement = await self.detail_query(pk=pk)
 
             # execute query
-            result = await run.io_bound(session.execute, statement)
+            obj = await run.io_bound(session.execute, statement)
 
-            # process result
-            result = result.scalars().unique().one_or_none()
+            # process object
+            obj = obj.scalars().unique().one_or_none()
 
-            # serialize result
+            # serialize object
             obj_serialized_dict = None
-            if result:
-                obj_dict = result.model_dump()
+            if obj:
+                obj_dict = obj.model_dump()
                 obj_serialized_dict = await self._data_from_model(data=obj_dict,
-                                                                  fields=serialization_fields)
+                                                                  fields=fields)
 
             return obj_serialized_dict
 
     async def create(self,
                      *data: dict[str, Any],
-                     deserialization_fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
+                     fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
         with self.admin.session() as session:
             objs = []
             # deserialize data
             for data_set in data:
                 deserialized_data = await self._data_to_model(data=data_set,
-                                                              fields=deserialization_fields)
+                                                              fields=fields)
                 obj = self.model(**deserialized_data)
                 objs.append(obj)
 
@@ -324,11 +324,11 @@ class SqlModelCrudView(BaseCrudView):
     async def edit(self,
                    *pks: str,
                    data: dict[str, Any],
-                   deserialization_fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
+                   fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
         with self.admin.session() as session:
             # deserialize data
             deserialized_data = await self._data_to_model(data=data,
-                                                          fields=deserialization_fields)
+                                                          fields=fields)
             objs = []
             for pk in pks:
                 # build query
