@@ -1,6 +1,8 @@
+import asyncio
 import logging
 import traceback
 from dataclasses import dataclass, field, fields
+from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, TYPE_CHECKING, Union
 
@@ -218,10 +220,26 @@ class BaseAdmin(DecoratedMethodClass):
                 _self._render_error(e)
             _self.has_404 = False
 
+        def decorate_route(sub_page_arguments: dict[str, Any]) -> Callable:
+            @wraps(sub_page_arguments["builder"])
+            async def wrapper(*args, **kwargs) -> None:
+                if sub_page_arguments["title"] is not None:
+                    ui.page_title(sub_page_arguments["title"])
+                if sub_page_arguments["icon"] is not None:
+                    # ToDo: implement favicon
+                    raise NotImplementedError("Icon is not yet supported.")
+
+                result = sub_page_arguments["builder"](*args, **kwargs)
+
+                if asyncio.iscoroutine(result):
+                    await result
+            return wrapper
+
+
         routes = {}  # self.path: root}
-        for path, kwargs in self.sub_pages.items():
-            builder: SyncOrAsyncMethod = kwargs["builder"]
-            routes[path] = builder
+        for path, _sub_page_arguments in self.sub_pages.items():
+            # builder: SyncOrAsyncMethod = kwargs["builder"]
+            routes[path] = decorate_route(sub_page_arguments=_sub_page_arguments)
         type(f"{self.__class__.__name__}.{self.root.__name__}.{ui.sub_pages.__name__}",
              (ui.sub_pages,),
              {"_render_404": _render_404,
