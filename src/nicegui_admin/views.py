@@ -488,6 +488,47 @@ class BaseCrudView(BaseView):
                         await field.detail_value(value=data.get(field.name))
 
     @sub_page("/create")
+    async def create_page(self) -> None:
+        # get fields
+        fields = await self.get_fields(mode="form")
+
+        # create form
+        form = self.Form()
+
+        async def save():
+            data = await self.create(form.data)
+            ui.notify("Saved!")
+            ui.navigate.to(f"{self.admin.path}{self.path}/edit/{data.get('_pk')}")
+
+        async def back():
+            ui.navigate.back()
+
+        async def save_and_back():
+            data = await self.create(form.data)
+            ui.notify("Saved!")
+            ui.navigate.to(f"{self.admin.path}{self.path}/detail/{data.get('_pk')}")
+
+        ui.button("Save", on_click=save).bind_enabled_from(form, "correct")
+        ui.button("Save and back", on_click=save_and_back).bind_enabled_from(form, "correct")
+        ui.button("Back", on_click=back)
+
+        for field in fields:
+            with ui.card(align_items="stretch").classes("w-full").props("flat bordered").tight() as card:
+                field_handler = form.add_field_handler(field=field)
+
+                with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as label_section:
+                    # render label
+                    await field.form_label(field_handler=field_handler)
+
+                ui.separator().bind_visibility_from(field_handler, "use_default", backward=lambda v: not v)
+
+                with ui.card_section().classes("p-0 mx-4 my-2 items-stretch") as value_section:
+                    # render value
+                    await field.form_value(field_handler=field_handler)
+
+                value_section.bind_visibility_from(field_handler, "use_default", backward=lambda v: not v)
+
+
     @sub_page("/edit/{pk}")
     async def edit_page(self,
                         pk: str | None = None) -> None:
