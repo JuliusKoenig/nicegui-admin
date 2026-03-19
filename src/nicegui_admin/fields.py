@@ -28,11 +28,16 @@ class BaseField:
     :param help_text: The help text of the field, used to provide additional information about the field in the UI.
     :param key: The key for data binding, if not provided, it will be the same as name
     :param required: Indicate if the fields is required
+    :param default: Indicate if the field has a default value. It can be either a static value or a dynamic value that is determined at runtime(python or database).
+    :param default_value: The static default value of the field. Only used for display purposes.
+    :param align: The alignment of the field in the list table. It can be "left", "center" or "right". Default is "left".
     :param searchable: Indicate if the fields is searchable
     :param orderable: Indicate if the fields is orderable
     :param exclude: Control field visibility in list page.
-
-    ToDo: check if all parameters are used, document leftovers and remove unused ones.
+    :param exportable: Indicate if the fields is exportable
+    :param cast_type: A type or tuple of types to cast the value from the database to ui or from ui to database. If the value is not of the specified type(s), it will be casted to the first type in the tuple. If casting fails, an exception will be raised.
+    :param data_from_model_cast_type: A type or tuple of types to cast the value from the database to the ui. Default is the same as `cast_type`. If the value is not of the specified type(s), it will be casted to the first type in the tuple. If casting fails, an exception will be raised.
+    :param data_to_model_cast_type: A type or tuple of types to cast the value from the ui to the database. Default is the same as `cast_type`. If the value is not of the specified type(s), it will be casted to the first type in the tuple. If casting fails, an exception will be raised.
     """
 
     name: str = field()
@@ -49,11 +54,11 @@ class BaseField:
 
     default: Default | None = field(default=None)
     default_value: Any | None = field(default=None)
-    align: str | None = field(default="right")
-    searchable: bool = field(default=True)
+    align: str | None = field(default="left")
+    searchable: bool = field(default=True)  # ToDo: implement searchable
     orderable: bool = field(default=True)
     exclude: list[str] = field(default_factory=list)
-    exportable: bool = field(default=True)
+    exportable: bool = field(default=True)  # ToDo: implement searchable
     cast_type: tuple[_type] | None = field(default=None)
     data_from_model_cast_type: tuple[_type] | Unset | None = field(default=Unset)
     data_to_model_cast_type: tuple[_type] | Unset | None = field(default=Unset)
@@ -247,9 +252,9 @@ class StringField(BaseField):
             else:
                 value_label = self.label_form_value
         input_element = ui.input(value=field_handler.original_value,
-                                                   label=value_label,
-                                                   placeholder=self.placeholder,
-                                                   validation=field_handler.form_validator).bind_value(field_handler, "value")
+                                 label=value_label,
+                                 placeholder=self.placeholder,
+                                 validation=field_handler.form_validator).bind_value(field_handler, "value")
         if self.clearable:
             input_element.props("clearable")
         input_element.validate(return_result=False)
