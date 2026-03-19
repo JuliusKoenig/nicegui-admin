@@ -431,7 +431,7 @@ class BaseCrudView(BaseView):
                                    "field": field.name,
                                    "required": field.required,
                                    "sortable": field.orderable,
-                                   "align": "left"} for field in fields],
+                                   "align": field.align} for field in fields],
                          rows=rows,
                          row_key='name').classes("w-full table-sticky-header").props("flat bordered")
 
