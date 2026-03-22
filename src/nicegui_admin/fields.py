@@ -276,15 +276,15 @@ class StringField(BaseField):
         result = await super().form_value_validator(value=value)
         if result is not None:
             return result
-        # if self.minlength is not None:
-        #     if len(value) < self.minlength:
-        #         return f"Minimum length is {self.minlength}"
-        # if self.maxlength is not None:
-        #     if len(value) > self.maxlength:
-        #         return f"Maximum length is {self.maxlength}"
-        # if self.allowed_characters is not None:
-        #     if any(c not in self.allowed_characters for c in value):
-        #         return f"Only the following characters are allowed: {self.allowed_characters}"
+        if self.minlength is not None:
+            if len(value) < self.minlength:
+                return f"Minimum length is {self.minlength}"
+        if self.maxlength is not None:
+            if len(value) > self.maxlength:
+                return f"Maximum length is {self.maxlength}"
+        if self.allowed_characters is not None:
+            if any(c not in self.allowed_characters for c in value):
+                return f"Only the following characters are allowed: {self.allowed_characters}"
         return None
 
 

@@ -1,8 +1,8 @@
-# Inspired by wtforms-sqlalchemy
 import enum
 import inspect
 from typing import Any, Callable, Dict, Optional, Sequence
 
+from annotated_types import MinLen, MaxLen
 from sqlalchemy import ARRAY, Boolean, Column, Float, String, inspect as sqlalchemy_inspect
 from sqlalchemy.orm import (
     ColumnProperty,
@@ -191,6 +191,14 @@ class SqlModelFieldConverter(BaseSqlModelFieldConverter):
             field_kwargs["empty_is_none"] = True
         if isinstance(_type, String) and isinstance(_type.length, int) and _type.length > 0:
             field_kwargs["maxlength"] = _type.length
+        for metadata in model_field_info.metadata:
+            if isinstance(metadata, MaxLen):
+                if "maxlength" in field_kwargs:
+                    field_kwargs["maxlength"] = min(field_kwargs["maxlength"], metadata.max_length) # ensure maxlength is not greater than the one defined in the column type
+                else:
+                    field_kwargs["maxlength"] = metadata.max_length
+            elif isinstance(metadata, MinLen):
+                field_kwargs["minlength"] = metadata.min_length
         return field_kwargs
 
     @classmethod
