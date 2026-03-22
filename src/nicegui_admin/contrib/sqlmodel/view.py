@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Any, Sequence, Union, TYPE_CHECKING
 
 from nicegui import run
+from pydantic import ValidationError
 from pydantic_core import PydanticUndefined
 from sqlmodel import SQLModel, select
 from sqlalchemy import String, and_, cast, func, or_, select
@@ -12,8 +13,9 @@ from nicegui_admin.contrib.sqlmodel.converters import BaseSqlModelFieldConverter
 from nicegui_admin.contrib.sqlmodel.exceptions import InvalidModelError
 from nicegui_admin.contrib.sqlmodel.fields import MultiplePKField
 from nicegui_admin.contrib.sqlmodel.helpers import build_query, extract_column_python_type
+from nicegui_admin.form import Form
 from nicegui_admin.views import BaseCrudView, WHERE, ORDER_BY
-from nicegui_admin.helpers import Unset, iterdecode, not_none
+from nicegui_admin.helpers import Unset, iterdecode, not_none, pydantic_error_to_form_validation_errors
 from nicegui_admin.fields import (
     BaseField,
     # ColorField, # ToDo: check if needed
@@ -30,6 +32,7 @@ if TYPE_CHECKING:
     from nicegui_admin.contrib.sqlmodel.admin import SqlModelAdmin
 
 _list = list
+NO_VALIDATION_FIELDS = ()# (FileField, RelationField) # ToDo: check if needed
 
 
 @dataclass
@@ -170,11 +173,11 @@ class SqlModelCrudView(BaseCrudView):
         return statement
 
     async def list(self,
+                   fields: Sequence[BaseField],
                    offset: int = 0,
                    limit: int = 100,
                    where: WHERE = None,
-                   order_by: ORDER_BY = None,
-                   fields: Sequence[BaseField] | None = None) -> _list[dict[str, Any]]:
+                   order_by: ORDER_BY = None) -> _list[dict[str, Any]]:
         with self.admin.session() as session:
             # build query
             statement = await self.list_query()
@@ -237,8 +240,8 @@ class SqlModelCrudView(BaseCrudView):
         return statement
 
     async def detail(self,
-                     pk: str,
-                     fields: Sequence[BaseField] | None = None) -> dict[str, Any] | None:
+                     fields: Sequence[BaseField],
+                     pk: str) -> dict[str, Any] | None:
         with self.admin.session() as session:
             # build query
             statement = await self.detail_query(pk=pk)
@@ -259,35 +262,33 @@ class SqlModelCrudView(BaseCrudView):
             return obj_serialized_dict
 
     async def create(self,
-                     *data: dict[str, Any],
-                     fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
-        with self.admin.session() as session:
-            objs = []
-            # deserialize data
-            for data_set in data:
-                deserialized_data = await self._data_to_model(data=data_set,
+                     fields: Sequence[BaseField],
+                     form: Form) -> dict[str, Any] | None:
+        try:
+            with self.admin.session() as session:
+                # validate data
+                await self.validate(fields=fields,
+                                    data=form.data)
+
+                # deserialize data
+                deserialized_data = await self._data_to_model(data=form.data,
                                                               fields=fields)
                 obj = self.model(**deserialized_data)
-                objs.append(obj)
 
-            # add to session and commit
-            for obj in objs:
+                # add to session and commit
                 session.add(obj)
-            session.commit()
+                session.commit()
 
-            # refresh objects
-            for obj in objs:
+                # refresh object
                 session.refresh(obj)
 
-            # serialize objects
-            obj_serialized_dicts = []
-            for obj in objs:
+                # serialize object
                 obj_dict = obj.model_dump()
                 obj_serialized_dict = await self._data_from_model(data=obj_dict,
                                                                   fields=fields)
-                obj_serialized_dicts.append(obj_serialized_dict)
-
-        return obj_serialized_dicts if len(obj_serialized_dicts) > 1 else obj_serialized_dicts[0]
+        except Exception as exc:
+            return self.handle_exception(exc=exc, form=form)
+        return obj_serialized_dict
 
     async def edit_query(self,
                          pk: str) -> Select:
@@ -331,24 +332,27 @@ class SqlModelCrudView(BaseCrudView):
         return statement
 
     async def edit(self,
-                   *pks: str,
-                   data: dict[str, Any],
-                   fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
-        with self.admin.session() as session:
-            # deserialize data
-            deserialized_data = await self._data_to_model(data=data,
-                                                          fields=fields)
-            objs = []
-            for pk in pks:
+                   fields: Sequence[BaseField],
+                   pk: str,
+                   form: Form) -> dict[str, Any] | None:
+        try:
+            with self.admin.session() as session:
+                # validate data
+                await self.validate(fields=fields,
+                                    data=form.data)
+
+                # deserialize data
+                deserialized_data = await self._data_to_model(data=form.data,
+                                                              fields=fields)
                 # build query
                 statement = await self.detail_query(pk=pk)
 
                 # execute query
-                result = await run.io_bound(session.execute, statement)
+                obj = await run.io_bound(session.execute, statement)
 
-                # process result
-                result = result.scalars().unique().one_or_none()
-                if not result:
+                # process object
+                obj = obj.scalars().unique().one_or_none()
+                if not obj:
                     raise ValueError(f"No such primary key: {pk}")
 
                 # update object
@@ -362,30 +366,25 @@ class SqlModelCrudView(BaseCrudView):
                             value = model_field.default_factory()
                         else:
                             value = None
-                    setattr(result, model_field_name, value)
-                objs.append(result)
+                    setattr(obj, model_field_name, value)
 
-            # add to session and commit
-            for obj in objs:
+                # add to session and commit
                 session.add(obj)
-            session.commit()
+                session.commit()
 
-            # refresh objects
-            for obj in objs:
+                # refresh objects
                 session.refresh(obj)
 
-            # serialize objects
-            obj_serialized_dicts = []
-            for obj in objs:
+                # serialize objects
                 obj_dict = obj.model_dump()
                 obj_serialized_dict = await self._data_from_model(data=obj_dict,
                                                                   fields=fields)
-                obj_serialized_dicts.append(obj_serialized_dict)
-
-        return obj_serialized_dicts if len(obj_serialized_dicts) > 1 else obj_serialized_dicts[0]
+        except Exception as exc:
+            return self.handle_exception(exc=exc, form=form)
+        return obj_serialized_dict
 
     async def delete(self,
-                     *pks: str) -> bool | _list[bool]:
+                     pk: str) -> bool:
         raise NotImplementedError()
 
     # def search_query(self, term: str) -> Any:
@@ -424,3 +423,35 @@ class SqlModelCrudView(BaseCrudView):
 
     # async def build_full_text_search_query(self, request: Request, term: str, model: Any) -> Any:
     #     return self.get_search_query(request, term)
+
+
+    async def validate(self,
+                       fields: Sequence[BaseField],
+                       data: dict[str, Any]) -> None:
+        fields_to_exclude = []
+        for f in fields:
+            if not isinstance(f, NO_VALIDATION_FIELDS): # ToDo: check if needed
+                continue
+            fields_to_exclude.append(f.name)
+
+        validated_data = {k: v for k, v in data.items() if k not in fields_to_exclude}
+
+        self.model.model_validate(validated_data)
+
+    def handle_exception(self,
+                         exc: Exception,
+                         form: Form) -> None:
+        if isinstance(exc, ValidationError):
+            exc = pydantic_error_to_form_validation_errors(exc)
+
+        # try:
+        #     """Automatically handle sqlalchemy_file error"""
+        #     from sqlalchemy_file.exceptions import ValidationError
+        #
+        #     if isinstance(exc, ValidationError):
+        #         raise FormValidationError({exc.key: exc.msg})
+        # except ImportError:  # pragma: no cover
+        #     pass
+
+        return super().handle_exception(exc=exc,
+                                        form=form)

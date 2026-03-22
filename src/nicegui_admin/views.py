@@ -1,14 +1,15 @@
-import uuid
 from dataclasses import dataclass, field as _field
 from pathlib import Path
-from typing import Union, Optional, Callable, Awaitable
+from typing import Union
 from abc import abstractmethod
 from typing import Any, Sequence
 
 from fastapi import HTTPException
-from nicegui import ui, binding
+from nicegui import ui
 
+from nicegui_admin.exceptions import FormValidationError
 from nicegui_admin.fields import BaseField
+from nicegui_admin.form import Form
 from nicegui_admin.helpers import Unset, slugify_name, prettify_name, wrapped_method, DecoratedMethodClass
 from nicegui_admin.admin import BaseAdmin, sub_page
 from nicegui_admin.types import ExportType, SyncOrAsyncMethod
@@ -44,7 +45,6 @@ class BaseView(DecoratedMethodClass):
     @property
     def admin(self) -> Union[BaseAdmin, Any, None]:
         return getattr(self, "_admin", None)
-
 
     @property
     def sub_pages(self) -> dict[str, dict[str, Any]]:
@@ -125,89 +125,6 @@ class BaseCrudView(BaseView):
     """
     Base class for all CRUD views.
     """
-
-    class Form:
-        class FieldHandler:
-            value: Any = binding.BindableProperty()
-            use_default: bool = binding.BindableProperty()
-
-            def __init__(self,
-                         form: "BaseCrudView.Form",
-                         field: BaseField,
-                         value: Any = None):
-                self._form: "BaseCrudView.Form" = form
-                self._field: BaseField = field
-                self._original_value: Any = value
-                self._form_validator_result: None | str = None
-                self.value = value
-                if self.value is None:
-                    self.use_default = True
-                else:
-                    self.use_default = False
-
-            @property
-            def form(self) -> "BaseCrudView.Form":
-                return self._form
-
-            @property
-            def field(self) -> BaseField:
-                return self._field
-
-            @property
-            def original_value(self) -> Any:
-                return self._original_value
-
-            @property
-            def form_validator(self) -> Optional[Callable[[Any], Awaitable[None | str]]]:
-                async def wrapper(value: Any) -> None | str:
-                    result = await self.field.form_value_validator(value=value)
-                    self._form_validator_result = result
-
-                    # update correctness of form
-                    correct = True
-                    for handler in self.form.field_handler.values():
-                        if handler.form_validator_result is not None:
-                            correct = False
-                    self.form.correct = correct
-
-                    return result
-                return wrapper
-
-            @property
-            def form_validator_result(self) -> None | str:
-                return self._form_validator_result
-
-        correct: bool = binding.BindableProperty()
-
-        def __init__(self):
-            self._field_handler = []
-            self.correct = True
-
-        @property
-        def data(self) -> dict[str, Any]:
-            result = {}
-            for field_name, field_handler in self.field_handler.items():
-                if not field_handler.use_default:
-                    if field_handler.value != field_handler.original_value:
-                        result[field_name] = field_handler.value
-                    else:
-                        result[field_name] = field_handler.original_value
-            return result
-
-        @property
-        def field_handler(self) -> dict[str, "BaseCrudView.Form.FieldHandler"]:
-            return {handler.field.name: handler for handler in self._field_handler}
-
-        def add_field_handler(self,
-                              field: BaseField,
-                              value: Any = None) -> "BaseCrudView.Form.FieldHandler":
-            if field.name in self.field_handler:
-                raise RuntimeError(f"Field {field} already exists")
-            handler = BaseCrudView.Form.FieldHandler(form=self,
-                                                     field=field,
-                                                     value=value)
-            self._field_handler.append(handler)
-            return handler
 
     fields: Sequence[BaseField | str] = _field(default_factory=list)
     pk_field: BaseField | None = _field(default=None, init=False)
@@ -297,21 +214,9 @@ class BaseCrudView(BaseView):
 
     async def _data_from_model(self,
                                data: dict[str, Any],
-                               fields: Sequence[BaseField] | None = None) -> dict[str, Any]:
+                               fields: Sequence[BaseField]) -> dict[str, Any]:
         # add hidden _pk to serialized data for reference
         serialized_data = {"_pk": (await self.pk_field.data_from_model(data=data))[1]}
-
-        # find fields by key if not provided
-        if fields is None:
-            fields = []
-            for field_key in data.keys():
-                field = None
-                for field in self.fields:
-                    if field.key == field_key:
-                        break
-                if field is None:
-                    raise ValueError(f"Field with key '{field_key}' not found in fields.")
-                fields.append(field)
 
         # map data to field.name's'
         for field in fields:
@@ -322,20 +227,8 @@ class BaseCrudView(BaseView):
 
     async def _data_to_model(self,
                              data: dict[str, Any],
-                             fields: Sequence[BaseField] | None = None) -> dict[str, Any]:
+                             fields: Sequence[BaseField]) -> dict[str, Any]:
         deserialized_data = {}
-
-        # find fields by name if not provided
-        if fields is None:
-            fields = []
-            for field_name in data.keys():
-                field = None
-                for field in self.fields:
-                    if field.name == field_name:
-                        break
-                if field is None:
-                    raise ValueError(f"Field with name '{field_name}' not found in fields.")
-                fields.append(field)
 
         # map data to field.key's
         for field in fields:
@@ -350,36 +243,52 @@ class BaseCrudView(BaseView):
 
     @abstractmethod
     async def list(self,
+                   fields: Sequence[BaseField],
                    offset: int = 0,
                    limit: int = 100,
                    where: WHERE = None,
-                   order_by: ORDER_BY = None,
-                   fields: Sequence[BaseField] | None = None) -> _list[dict[str, Any]]:
+                   order_by: ORDER_BY = None) -> _list[dict[str, Any]]:
         raise NotImplementedError()
 
     @wrapped_method
     async def detail(self,
-                     pk: str,
-                     fields: Sequence[BaseField] | None = None) -> dict[str, Any] | None:
+                     fields: Sequence[BaseField],
+                     pk: str) -> dict[str, Any] | None:
         raise NotImplementedError()
 
     @abstractmethod
     async def create(self,
-                     *data: dict[str, Any],
-                     fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
+                     fields: Sequence[BaseField],
+                     form: Form) -> dict[str, Any]:
         raise NotImplementedError()
 
     @abstractmethod
     async def edit(self,
-                   *pks: str,
-                   data: dict[str, Any],
-                   fields: Sequence[BaseField] | None = None) -> dict[str, Any] | _list[dict[str, Any]]:
+                   fields: Sequence[BaseField],
+                   pk: str,
+                   form: Form) -> dict[str, Any]:
         raise NotImplementedError()
 
     @abstractmethod
     async def delete(self,
-                     *pks: str) -> bool | _list[bool]:
+                     pk: str) -> bool:
         raise NotImplementedError()
+
+    def handle_exception(self,
+                         exc: Exception,
+                         form: Form) -> None:
+        if isinstance(exc, FormValidationError):
+            ui.notify("Validation error: please check the form for errors.",
+                      type="negative")
+            for field_name, error_message in exc.errors.items():
+                form.field_handler[field_name].validation_element.error = error_message
+            return
+        error_message = "An error occurred while processing your request."
+        if self.admin.debug:
+            error_message += f"  Details:\n{str(exc)}"
+        ui.notify(error_message,
+                  type="negative")
+        raise exc
 
     async def get_fields(self, mode: str) -> _list[BaseField]:
         result = []
@@ -398,32 +307,33 @@ class BaseCrudView(BaseView):
         ui.button("Create", on_click=lambda e: ui.navigate.to(f"{self.admin.path}{self.path}/create"))
 
         # ToDo: remove after testing
-        await self.create({
-            "boolean_attr1": True,
-            # "boolean_attr2": False,
-            "integer_attr1": 100,
-            # "integer_attr2": 0,
-            "float_attr1": 6.9,
-            # "float_attr2": 0.0,
-            "string_attr1": "test",
-            # "string_attr2": "",
-            "uuid_attr1": uuid.uuid4(),
-            # "uuid_attr2": None
-            "ip_v4_address_attr1": "1.2.3.4",
-            # "ip_v4_address_attr2": None,
-            "ip_v6_address_attr1": "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
-            # "ip_v6_address_attr2": None,
-        })
+        # await self.create(
+        #     fields=await self.get_fields(mode="create"),
+        #     data={"boolean_attr1": True,
+        #           # "boolean_attr2": False,
+        #           "integer_attr1": 100,
+        #           # "integer_attr2": 0,
+        #           "float_attr1": 6.9,
+        #           # "float_attr2": 0.0,
+        #           "string_attr1": "test",
+        #           # "string_attr2": "",
+        #           "uuid_attr1": uuid.uuid4(),
+        #           # "uuid_attr2": None
+        #           "ip_v4_address_attr1": "1.2.3.4",
+        #           # "ip_v4_address_attr2": None,
+        #           "ip_v6_address_attr1": "2001:0db8:85a3:0000:0000:8a2e:0370:7334",
+        #           # "ip_v6_address_attr2": None,
+        #           })
 
         # get fields
         fields = await self.get_fields(mode="list")
 
         # get data # ToDo: implement pagination, filtering, sorting, with async loading, etc.
-        rows = await self.list(offset=offset,
+        rows = await self.list(fields=fields,
+                               offset=offset,
                                limit=limit,
                                where=where,
-                               order_by=order_by,
-                               fields=fields)
+                               order_by=order_by)
 
         # build table
         table = ui.table(columns=[{"name": field.name,
@@ -458,8 +368,9 @@ class BaseCrudView(BaseView):
         fields = await self.get_fields(mode="detail")
 
         # get data
-        data = await self.detail(pk=pk,
-                                 fields=fields)
+        data = await self.detail(fields=fields,
+                                 pk=pk)
+
         if data is None:
             raise HTTPException(status_code=404, detail=f"{self.title} with pk '{pk}' not found!")
 
@@ -493,20 +404,26 @@ class BaseCrudView(BaseView):
         fields = await self.get_fields(mode="form")
 
         # create form
-        form = self.Form()
+        form = Form()
 
         async def save():
-            data = await self.create(form.data)
-            ui.notify("Saved!")
-            ui.navigate.to(f"{self.admin.path}{self.path}/edit/{data.get('_pk')}")
+            data = await self.create(fields=fields,
+                                     form=form)
+            if data is not None:
+                ui.notify("Saved!",
+                          type="positive")
+                ui.navigate.to(f"{self.admin.path}{self.path}/edit/{data.get('_pk')}")
 
         async def back():
             ui.navigate.back()
 
         async def save_and_back():
-            data = await self.create(form.data)
-            ui.notify("Saved!")
-            ui.navigate.to(f"{self.admin.path}{self.path}/detail/{data.get('_pk')}")
+            data = await self.create(fields=fields,
+                                     form=form)
+            if data is not None:
+                ui.notify("Saved!",
+                          type="positive")
+                ui.navigate.to(f"{self.admin.path}{self.path}/detail/{data.get('_pk')}")
 
         ui.button("Save", on_click=save).bind_enabled_from(form, "correct")
         ui.button("Save and back", on_click=save_and_back).bind_enabled_from(form, "correct")
@@ -528,7 +445,6 @@ class BaseCrudView(BaseView):
 
                 value_section.bind_visibility_from(field_handler, "use_default", backward=lambda v: not v)
 
-
     @sub_page("/edit/{pk}")
     async def edit_page(self,
                         pk: str | None = None) -> None:
@@ -539,30 +455,34 @@ class BaseCrudView(BaseView):
         fields = await self.get_fields(mode="form")
 
         # get data
-        data = await self.detail(pk=pk,
-                                 fields=fields)
+        data = await self.detail(fields=fields,
+                                 pk=pk)
         if data is None:
             raise HTTPException(status_code=404, detail=f"{self.title} with pk '{pk}' not found!")
 
         # create form
-        form = self.Form()
+        form = Form()
 
         async def save():
-            nonlocal pk, data
-            data = await self.edit(pk, data=form.data)
-            pk = data.get("_pk")
-            ui.notify("Saved!")
-            ui.navigate.to(f"{self.admin.path}{self.path}/edit/{pk}")
+            _data = await self.edit(fields=fields,
+                                    form=form,
+                                    pk=pk)
+            if _data is not None:
+                ui.notify("Saved!",
+                          type="positive")
+                ui.navigate.to(f"{self.admin.path}{self.path}/edit/{data.get('_pk')}")
 
         async def back():
             ui.navigate.back()
 
         async def save_and_back():
-            nonlocal pk, data
-            data = await self.edit(pk, data=form.data)
-            pk = data.get("_pk")
-            ui.notify("Saved!")
-            ui.navigate.to(f"{self.admin.path}{self.path}/detail/{pk}")
+            _data = await self.edit(fields=fields,
+                                    form=form,
+                                    pk=pk)
+            if _data is not None:
+                ui.notify("Saved!",
+                          type="positive")
+                ui.navigate.to(f"{self.admin.path}{self.path}/detail/{data.get('_pk')}")
 
         ui.button("Save", on_click=save).bind_enabled_from(form, "correct")
         ui.button("Save and back", on_click=save_and_back).bind_enabled_from(form, "correct")

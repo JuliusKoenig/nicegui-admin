@@ -8,7 +8,9 @@ from typing import Any, TypeVar, Iterable
 
 from nicegui.element import Element
 from nicegui.helpers import is_coroutine_function
+from pydantic import ValidationError
 
+from nicegui_admin.exceptions import FormValidationError
 from nicegui_admin.types import SyncOrAsyncMethod
 
 T = TypeVar("T")
@@ -368,3 +370,21 @@ def iterdecode(value: str) -> tuple[str, ...]:
     result.append(accumulator)
 
     return tuple(result)
+
+def pydantic_error_to_form_validation_errors(exc: Any) -> FormValidationError:
+    """
+    Convert Pydantic Error to FormValidationError
+    """
+
+    assert isinstance(exc, ValidationError)
+    errors: dict[str | int, Any] = {}
+    for pydantic_error in exc.errors():
+        loc: tuple[int | str, ...] = pydantic_error["loc"]
+        _d = errors
+        for i in range(len(loc)):
+            if i == len(loc) - 1:
+                _d[loc[i]] = pydantic_error["msg"]
+            elif loc[i] not in _d:
+                _d[loc[i]] = {}
+            _d = _d[loc[i]]
+    return FormValidationError(errors)

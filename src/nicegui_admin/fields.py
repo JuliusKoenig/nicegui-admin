@@ -256,10 +256,10 @@ class StringField(BaseField):
         input_element = ui.input(value=field_handler.original_value,
                                  label=value_label,
                                  placeholder=self.placeholder,
-                                 validation=field_handler.form_validator).bind_value(field_handler, "value")
+                                 validation=self.form_value_validator).bind_value(field_handler, "value")
         if self.clearable:
             input_element.props("clearable")
-        input_element.validate(return_result=False)
+        field_handler.validation_element = input_element
 
     async def form_value_validator(self,
                                    value: Any) -> None | str:
