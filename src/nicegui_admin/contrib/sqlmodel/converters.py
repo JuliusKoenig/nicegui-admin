@@ -156,9 +156,9 @@ class SqlModelFieldConverter(BaseSqlModelFieldConverter):
         field_kwargs = {"type": kwargs["_type"],
                         "name": name}
         if column.nullable:
-            field_kwargs["required"] = False
+            field_kwargs["not_none"] = False
         else:
-            field_kwargs["required"] = True
+            field_kwargs["not_none"] = True
         if column.default:
             if isinstance(column.default, ScalarElementColumnDefault):
                 field_kwargs["default"] = BaseField.Default.STATIC

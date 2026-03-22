@@ -258,13 +258,11 @@ class BaseCrudView(BaseView):
 
     @abstractmethod
     async def create(self,
-                     fields: Sequence[BaseField],
                      form: Form) -> dict[str, Any]:
         raise NotImplementedError()
 
     @abstractmethod
     async def edit(self,
-                   fields: Sequence[BaseField],
                    pk: str,
                    form: Form) -> dict[str, Any]:
         raise NotImplementedError()
@@ -274,14 +272,22 @@ class BaseCrudView(BaseView):
                      pk: str) -> bool:
         raise NotImplementedError()
 
+    @abstractmethod
+    async def form_validate(self,
+                            form: Form) -> None:
+        raise NotImplementedError()
+
     def handle_exception(self,
                          exc: Exception,
                          form: Form) -> None:
         if isinstance(exc, FormValidationError):
-            ui.notify("Validation error: please check the form for errors.",
-                      type="negative")
+            message = "An error occurred while processing your request:\n"
             for field_name, error_message in exc.errors.items():
+                message += f"{field_name}: {error_message}\n"
                 form.field_handler[field_name].validation_element.error = error_message
+            ui.notify(message,
+                      type="negative",
+                      multi_line=True)
             return
         error_message = "An error occurred while processing your request."
         if self.admin.debug:
@@ -339,7 +345,7 @@ class BaseCrudView(BaseView):
         table = ui.table(columns=[{"name": field.name,
                                    "label": field.label,
                                    "field": field.name,
-                                   "required": field.required,
+                                   "required": field.not_none,
                                    "sortable": field.orderable,
                                    "align": field.align} for field in fields],
                          rows=rows,
@@ -404,29 +410,32 @@ class BaseCrudView(BaseView):
         fields = await self.get_fields(mode="form")
 
         # create form
-        form = Form()
+        form = Form(view=self)
 
         async def save():
-            data = await self.create(fields=fields,
-                                     form=form)
-            if data is not None:
+            _data = await self.create(form=form)
+            if _data is not None:
                 ui.notify("Saved!",
                           type="positive")
-                ui.navigate.to(f"{self.admin.path}{self.path}/edit/{data.get('_pk')}")
+                ui.navigate.to(f"{self.admin.path}{self.path}/edit/{_data.get('_pk')}")
 
         async def back():
             ui.navigate.back()
 
         async def save_and_back():
-            data = await self.create(fields=fields,
-                                     form=form)
-            if data is not None:
+            _data = await self.create(form=form)
+            if _data is not None:
                 ui.notify("Saved!",
                           type="positive")
-                ui.navigate.to(f"{self.admin.path}{self.path}/detail/{data.get('_pk')}")
+                ui.navigate.to(f"{self.admin.path}{self.path}/detail/{_data.get('_pk')}")
 
-        ui.button("Save", on_click=save).bind_enabled_from(form, "correct")
-        ui.button("Save and back", on_click=save_and_back).bind_enabled_from(form, "correct")
+        # buttons
+        with ui.button("Save", on_click=save).bind_enabled_from(form, "errors", backward=lambda v: not bool(v)):
+            with ui.tooltip().classes("bg-red").bind_visibility_from(form, "errors", backward=lambda v: bool(v)):
+                ui.html().bind_content_from(form, "errors", backward=lambda v: "".join(f"<div>{line}</div>" for line in v))
+        with ui.button("Save and back", on_click=save_and_back).bind_enabled_from(form, "errors", backward=lambda v: not bool(v)):
+            with ui.tooltip().classes("bg-red").bind_visibility_from(form, "errors", backward=lambda v: bool(v)):
+                ui.html().bind_content_from(form, "errors", backward=lambda v: "".join(f"<div>{line}</div>" for line in v))
         ui.button("Back", on_click=back)
 
         for field in fields:
@@ -461,31 +470,39 @@ class BaseCrudView(BaseView):
             raise HTTPException(status_code=404, detail=f"{self.title} with pk '{pk}' not found!")
 
         # create form
-        form = Form()
+        form = Form(view=self)
 
         async def save():
-            _data = await self.edit(fields=fields,
-                                    form=form,
+            _data = await self.edit(form=form,
                                     pk=pk)
             if _data is not None:
                 ui.notify("Saved!",
                           type="positive")
-                ui.navigate.to(f"{self.admin.path}{self.path}/edit/{data.get('_pk')}")
+                old_path = ui.context.client.request.url.path
+                new_path = f"{self.admin.path}{self.path}/edit/{_data.get('_pk')}"
+                if old_path != new_path:
+                    ui.navigate.to(new_path)
+                else:
+                    ui.navigate.reload()
 
         async def back():
             ui.navigate.back()
 
         async def save_and_back():
-            _data = await self.edit(fields=fields,
-                                    form=form,
+            _data = await self.edit(form=form,
                                     pk=pk)
             if _data is not None:
                 ui.notify("Saved!",
                           type="positive")
-                ui.navigate.to(f"{self.admin.path}{self.path}/detail/{data.get('_pk')}")
+                ui.navigate.to(f"{self.admin.path}{self.path}/detail/{_data.get('_pk')}")
 
-        ui.button("Save", on_click=save).bind_enabled_from(form, "correct")
-        ui.button("Save and back", on_click=save_and_back).bind_enabled_from(form, "correct")
+        # buttons
+        with ui.button("Save", on_click=save).bind_enabled_from(form, "errors", backward=lambda v: not bool(v)):
+            with ui.tooltip().classes("bg-red").bind_visibility_from(form, "errors", backward=lambda v: bool(v)):
+                ui.html().bind_content_from(form, "errors", backward=lambda v: "".join(f"<div>{line}</div>" for line in v))
+        with ui.button("Save and back", on_click=save_and_back).bind_enabled_from(form, "errors", backward=lambda v: not bool(v)):
+            with ui.tooltip().classes("bg-red").bind_visibility_from(form, "errors", backward=lambda v: bool(v)):
+                ui.html().bind_content_from(form, "errors", backward=lambda v: "".join(f"<div>{line}</div>" for line in v))
         ui.button("Back", on_click=back)
 
         for field in fields:

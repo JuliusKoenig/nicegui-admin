@@ -23,7 +23,7 @@ from nicegui_admin.fields import (
     # FileField, # ToDo: check if needed
     # PhoneField, # ToDo: check if needed
     # RelationField, # ToDo: check if needed
-    StringField,
+    StringField, DummyField,
     # TextAreaField, # ToDo: check if needed
     # URLField, # ToDo: check if needed
 )
@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from nicegui_admin.contrib.sqlmodel.admin import SqlModelAdmin
 
 _list = list
-NO_VALIDATION_FIELDS = ()# (FileField, RelationField) # ToDo: check if needed
+NO_VALIDATION_FIELDS = (DummyField,)  # (FileField, RelationField) # ToDo: check if needed
 
 
 @dataclass
@@ -262,17 +262,15 @@ class SqlModelCrudView(BaseCrudView):
             return obj_serialized_dict
 
     async def create(self,
-                     fields: Sequence[BaseField],
                      form: Form) -> dict[str, Any] | None:
         try:
             with self.admin.session() as session:
                 # validate data
-                await self.validate(fields=fields,
-                                    data=form.data)
+                await form.validate()
 
                 # deserialize data
                 deserialized_data = await self._data_to_model(data=form.data,
-                                                              fields=fields)
+                                                              fields=form.fields)
                 obj = self.model(**deserialized_data)
 
                 # add to session and commit
@@ -285,7 +283,7 @@ class SqlModelCrudView(BaseCrudView):
                 # serialize object
                 obj_dict = obj.model_dump()
                 obj_serialized_dict = await self._data_from_model(data=obj_dict,
-                                                                  fields=fields)
+                                                                  fields=form.fields)
         except Exception as exc:
             return self.handle_exception(exc=exc, form=form)
         return obj_serialized_dict
@@ -332,18 +330,16 @@ class SqlModelCrudView(BaseCrudView):
         return statement
 
     async def edit(self,
-                   fields: Sequence[BaseField],
                    pk: str,
                    form: Form) -> dict[str, Any] | None:
         try:
             with self.admin.session() as session:
                 # validate data
-                await self.validate(fields=fields,
-                                    data=form.data)
+                await form.validate()
 
                 # deserialize data
                 deserialized_data = await self._data_to_model(data=form.data,
-                                                              fields=fields)
+                                                              fields=form.fields)
                 # build query
                 statement = await self.detail_query(pk=pk)
 
@@ -378,7 +374,7 @@ class SqlModelCrudView(BaseCrudView):
                 # serialize objects
                 obj_dict = obj.model_dump()
                 obj_serialized_dict = await self._data_from_model(data=obj_dict,
-                                                                  fields=fields)
+                                                                  fields=form.fields)
         except Exception as exc:
             return self.handle_exception(exc=exc, form=form)
         return obj_serialized_dict
@@ -424,19 +420,20 @@ class SqlModelCrudView(BaseCrudView):
     # async def build_full_text_search_query(self, request: Request, term: str, model: Any) -> Any:
     #     return self.get_search_query(request, term)
 
-
-    async def validate(self,
-                       fields: Sequence[BaseField],
-                       data: dict[str, Any]) -> None:
+    async def form_validate(self,
+                            form: Form) -> None:
+        # exclude fields that should not be validated (e.g., FileField, RelationField)
         fields_to_exclude = []
-        for f in fields:
-            if not isinstance(f, NO_VALIDATION_FIELDS): # ToDo: check if needed
-                continue
-            fields_to_exclude.append(f.name)
+        for f in form.fields:
+            if isinstance(f, NO_VALIDATION_FIELDS):  # ToDo: check if needed
+                fields_to_exclude.append(f.key)
+        validation_data = {k: v for k, v in form.data.items() if k not in fields_to_exclude}
 
-        validated_data = {k: v for k, v in data.items() if k not in fields_to_exclude}
-
-        self.model.model_validate(validated_data)
+        # validate data
+        try:
+            self.model.model_validate(validation_data)
+        except ValidationError as exc:
+            raise pydantic_error_to_form_validation_errors(exc)
 
     def handle_exception(self,
                          exc: Exception,

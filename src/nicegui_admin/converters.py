@@ -137,9 +137,9 @@ class PythonFieldConverter(BasePythonFieldConverter):
     def _common(cls,
                 *args,
                 name: str,
-                required: bool | None = True,
+                not_none: bool | None = True,
                 **kwargs: Any) -> dict[str, Any]:
-        return {"name": name, "required": required}
+        return {"name": name, "not_none": not_none}
 
     @converts(str, bytes, typing.Pattern)
     def conv_str(self,

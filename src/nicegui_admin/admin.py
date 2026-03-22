@@ -228,23 +228,24 @@ class BaseAdmin(DecoratedMethodClass):
                 if sub_page_arguments["icon"] is not None:
                     # ToDo: implement favicon
                     raise NotImplementedError("Icon is not yet supported.")
+                try:
+                    result = sub_page_arguments["builder"](*args, **kwargs)
+                    if asyncio.iscoroutine(result):
+                        await result
+                except Exception as e:
+                    _render_error(sub_page_element, e)
 
-                result = sub_page_arguments["builder"](*args, **kwargs)
-
-                if asyncio.iscoroutine(result):
-                    await result
             return wrapper
-
 
         routes = {}  # self.path: root}
         for path, _sub_page_arguments in self.sub_pages.items():
             # builder: SyncOrAsyncMethod = kwargs["builder"]
             routes[path] = decorate_route(sub_page_arguments=_sub_page_arguments)
-        type(f"{self.__class__.__name__}.{self.root.__name__}.{ui.sub_pages.__name__}",
-             (ui.sub_pages,),
-             {"_render_404": _render_404,
-              "_render_error": _render_error,
-              "_set_match": _set_match})(routes=routes).classes("w-full")
+        sub_page_element = type(f"{self.__class__.__name__}.{self.root.__name__}.{ui.sub_pages.__name__}",
+                                (ui.sub_pages,),
+                                {"_render_404": _render_404,
+                                 "_render_error": _render_error,
+                                 "_set_match": _set_match})(routes=routes).classes("w-full")
 
     def error_page(self,
                    status_code: int | Unset = Unset,

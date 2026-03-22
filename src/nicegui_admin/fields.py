@@ -10,7 +10,7 @@ from nicegui import ui
 from nicegui_admin.helpers import Unset
 
 if TYPE_CHECKING:
-    from nicegui_admin.views import BaseCrudView
+    from nicegui_admin.form import Form
 
 logger = logging.getLogger(__name__)
 _type = type
@@ -27,7 +27,7 @@ class BaseField:
     :param icon: The icon of the field, used to display an icon next to the label.
     :param help_text: The help text of the field, used to provide additional information about the field in the UI.
     :param key: The key for data binding, if not provided, it will be the same as name
-    :param required: Indicate if the fields is required
+    :param not_none: Indicate if the field is not nullable.
     :param default: Indicate if the field has a default value. It can be either a static value or a dynamic value that is determined at runtime(python or database).
     :param default_value: The static default value of the field. Only used for display purposes.
     :param align: The alignment of the field in the list table. It can be "left", "center" or "right". Default is "left".
@@ -46,7 +46,7 @@ class BaseField:
     icon: str | None = field(default=None)
     help_text: str | None = field(default=None)
     key: str | Unset = field(default=Unset)
-    required: bool = field(default=False)
+    not_none: bool = field(default=False)
 
     class Default(str, Enum):
         STATIC = "static"
@@ -147,33 +147,41 @@ class BaseField:
         ui.label(text=value)
 
     async def form_label(self,
-                         field_handler: "BaseCrudView.Form.FieldHandler") -> None:
+                         field_handler: "Form.FieldHandler") -> None:
         with ui.row(align_items="center", wrap=False):
             if self.icon:
                 ui.icon(name=self.icon).classes("field-label-header-icon")
             with ui.column().classes("gap-0"):
                 with ui.row(align_items="start", wrap=False).classes("gap-1"):
                     ui.label(text=self.label).classes("field-label-header-text")
-                    if self.required:
-                        ui.label(text="(required)").classes("field-form-label-required-text")
+                    if self.not_none:
+                        ui.label(text="(not none)").classes("field-form-label-not-none-text")
                     if self.default:
                         use_default = ui.checkbox(text=f"Use default",
                                                   value=field_handler.use_default).classes("field-form-label-default-text").props("dense size=xs")
                         if self.default == self.Default.STATIC:
-                            use_default.text += f": {self.default_value}"
+                            use_default.text += ": "
+                            if type(self.default_value) == str:
+                                use_default.text += f'"{self.default_value}"'
+                            else:
+                                use_default.text += str(self.default_value)
+                        elif self.default == self.Default.DYNAMIC:
+                            use_default.text += " factory"
                         use_default.bind_value(field_handler, "use_default")
+                        use_default.on_value_change(
+                            lambda: field_handler.validation_element.validate(return_result=False) if field_handler.validation_element is not None else None)
                 if self.help_text:
                     ui.label(self.help_text).classes("field-label-sub-header-text")
 
     async def form_value(self,
-                         field_handler: "BaseCrudView.Form.FieldHandler") -> None:
+                         field_handler: "Form.FieldHandler") -> None:
         ui.label(text=field_handler.original_value).bind_text(field_handler, "value")
 
     async def form_value_validator(self,
                                    value: Any) -> None | str:
-        if self.required:
+        if self.not_none:
             if await self.data_to_model_is_none(value=value):
-                return "This field is required"
+                return "This field cannot be None"
         try:
             await self.data_to_model(data={self.name: value})
         except Exception as e:
@@ -200,7 +208,7 @@ class BooleanField(BaseField):
         ui.badge(text="true" if value else "false", color="green" if value else "red").classes("text-bold")
 
     async def form_value(self,
-                         field_handler: "BaseCrudView.Form.FieldHandler") -> None:
+                         field_handler: "Form.FieldHandler") -> None:
         ui.switch(value=field_handler.original_value).bind_value(field_handler, "value")
 
 
@@ -244,7 +252,7 @@ class StringField(BaseField):
         return False
 
     async def form_value(self,
-                         field_handler: "BaseCrudView.Form.FieldHandler") -> None:
+                         field_handler: "Form.FieldHandler") -> None:
         value_label = None
         if self.label_form_value is not None:
             if self.label_form_value == StringField.LabelFormValue.LABEL:
@@ -255,8 +263,10 @@ class StringField(BaseField):
                 value_label = self.label_form_value
         input_element = ui.input(value=field_handler.original_value,
                                  label=value_label,
-                                 placeholder=self.placeholder,
-                                 validation=self.form_value_validator).bind_value(field_handler, "value")
+                                 placeholder=self.placeholder)
+        input_element.bind_value(field_handler,
+                                 "value",
+                                 forward=lambda value: "" if value is None else value)  # hint: forward is required because clearable sets value to None
         if self.clearable:
             input_element.props("clearable")
         field_handler.validation_element = input_element
@@ -266,15 +276,15 @@ class StringField(BaseField):
         result = await super().form_value_validator(value=value)
         if result is not None:
             return result
-        if self.minlength is not None:
-            if len(value) < self.minlength:
-                return f"Minimum length is {self.minlength}"
-        if self.maxlength is not None:
-            if len(value) > self.maxlength:
-                return f"Maximum length is {self.maxlength}"
-        if self.allowed_characters is not None:
-            if any(c not in self.allowed_characters for c in value):
-                return f"Only the following characters are allowed: {self.allowed_characters}"
+        # if self.minlength is not None:
+        #     if len(value) < self.minlength:
+        #         return f"Minimum length is {self.minlength}"
+        # if self.maxlength is not None:
+        #     if len(value) > self.maxlength:
+        #         return f"Maximum length is {self.maxlength}"
+        # if self.allowed_characters is not None:
+        #     if any(c not in self.allowed_characters for c in value):
+        #         return f"Only the following characters are allowed: {self.allowed_characters}"
         return None
 
 
@@ -295,7 +305,7 @@ class StringField(BaseField):
 #                 "minlength": self.minlength,
 #                 "maxlength": self.maxlength,
 #                 "placeholder": self.placeholder,
-#                 "required": self.required,
+#                 "not_none": self.not_none,
 #                 "disabled": self.disabled,
 #                 "readonly": self.read_only,
 #             }
@@ -744,7 +754,7 @@ class UUIDField(StringField):
 #                 "data_alt_format": self.form_alt_format,
 #                 "data_locale": get_locale(),
 #                 "placeholder": self.placeholder,
-#                 "required": self.required,
+#                 "not_none": self.not_none,
 #                 "disabled": self.disabled,
 #                 "readonly": self.read_only,
 #             }
@@ -1185,7 +1195,7 @@ class UUIDField(StringField):
 #     ) -> None:
 #         self.name = name
 #         self.fields = fields
-#         self.required = required
+#         self.not_none = not_none
 #         super().__post_init__()
 #         self._propagate_id()
 #
@@ -1269,7 +1279,7 @@ class UUIDField(StringField):
 #     def __init__(self, field: BaseField, required: bool = False) -> None:
 #         self.field = field
 #         self.name = field.name
-#         self.required = required
+#         self.not_none = not_none
 #         self.__post_init__()
 #
 #     def __post_init__(self) -> None:
@@ -1335,3 +1345,9 @@ class UUIDField(StringField):
 #
 #     def additional_js_links(self, request: Request, action: RequestAction) -> List[str]:
 #         return self.field.additional_js_links(request, action)
+
+
+@dataclass
+class DummyField(BaseField):
+    ...
+    # ToDo: remove this if it is not needed anymore

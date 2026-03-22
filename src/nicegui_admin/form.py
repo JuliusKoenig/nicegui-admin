@@ -3,7 +3,10 @@ from typing import Any, TYPE_CHECKING
 from nicegui import binding
 from nicegui.elements.mixins.validation_element import ValidationElement
 
+from nicegui_admin.exceptions import FormValidationError
+
 if TYPE_CHECKING:
+    from nicegui_admin.views import BaseCrudView
     from nicegui_admin.fields import BaseField
 
 
@@ -19,7 +22,6 @@ class Form:
             self._form: Form = form
             self._field: "BaseField" = field
             self._original_value: Any = value
-            # self._form_validator_result: None | str = None
             self.value = value
             if self.value is None:
                 self.use_default = True
@@ -63,25 +65,42 @@ class Form:
             def fset(_self, error: str | None) -> None:
                 parent_class.error.fset(_self, error)
 
-                # update correctness of form
-                correct = True
+                # update errors of form
+                errors = []
                 for handler in self.form.field_handler.values():
                     if handler.validation_element is not None:
                         if handler.validation_element.error is not None:
-                            correct = False
-                self.form.correct = correct
+                            errors.append(f"Field '{handler.field.name}': {handler.validation_element.error}")
+                self.form.errors = errors
 
             patched_class.error = property(fget=fget, fset=fset)
             self._validation_element.__class__ = patched_class
 
+            async def validator(_value: Any) -> None | str:
+                if self.use_default:  # disable validation for default values
+                    return None
+                form_field_result = None
+                try:
+                    await self.form.validate()
+                except FormValidationError as exc:
+                    form_field_result = exc.errors.get(self._field.name)
+                field_result = await self._field.form_value_validator(value=_value)
+                if field_result is not None:
+                    return field_result
+                return form_field_result
 
-            value.validate(return_result=False)
+            self._validation_element.validation = validator
 
-    correct: bool = binding.BindableProperty()
+    errors: list[str] = binding.BindableProperty()
 
-    def __init__(self):
+    def __init__(self, view: "BaseCrudView"):
+        self._view = view
         self._field_handler = []
-        self.correct = True
+        self.errors = []
+
+    @property
+    def view(self) -> "BaseCrudView":
+        return self._view
 
     @property
     def data(self) -> dict[str, Any]:
@@ -98,6 +117,15 @@ class Form:
     def field_handler(self) -> dict[str, "Form.FieldHandler"]:
         return {handler.field.name: handler for handler in self._field_handler}
 
+    @property
+    def fields(self) -> list["BaseField"]:
+        fields = []
+        for handler in self._field_handler:
+            if handler.use_default:
+                continue
+            fields.append(handler.field)
+        return fields
+
     def add_field_handler(self,
                           field: "BaseField",
                           value: Any = None) -> "Form.FieldHandler":
@@ -108,3 +136,12 @@ class Form:
                                     value=value)
         self._field_handler.append(handler)
         return handler
+
+    async def validate(self) -> None:
+        try:
+            await self.view.form_validate(form=self)
+        except FormValidationError as exc:
+            for fn, error_message in exc.errors.items():
+                if self.field_handler[fn].validation_element is not None:
+                    self.field_handler[fn].validation_element.error = error_message
+            raise exc

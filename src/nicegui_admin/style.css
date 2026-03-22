@@ -30,7 +30,7 @@ body.body--dark {
     font-size: 12px;
 }
 
-.field-form-label-required-text {
+.field-form-label-not-none-text {
     color: var(--header-font-color);
     font-weight: 400;
     font-size: 12px;
