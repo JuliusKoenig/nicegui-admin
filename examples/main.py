@@ -16,7 +16,8 @@ class MyAdmin(SqlModelAdmin):
     pass
 
 
-admin = MyAdmin(debug=True)
+admin = MyAdmin(debug=True,
+                engine="mysql+pymysql://test:test@localhost/test")
 
 
 class MyModel(SQLModel, table=True):
@@ -25,7 +26,9 @@ class MyModel(SQLModel, table=True):
                            description="ID of the model")
     name: str = Field(default_factory=lambda: "".join(random.choices(string.ascii_letters, k=10)),
                       primary_key=True,
-                      description="Name of the model")
+                      description="Name of the model",
+                      min_length=3,
+                      max_length=10)
     boolean_attr1: bool = Field(description="Boolean attribute 1")
     boolean_attr2: bool = Field(default=False,
                                 description="Boolean attribute 2")

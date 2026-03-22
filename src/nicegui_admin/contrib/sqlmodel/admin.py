@@ -23,8 +23,7 @@ class SqlModelAdmin(BaseAdmin):
         self.engine = Unset.resolve(self.engine, "sqlite:///database.db")
         if type(self.engine) is str:
             self.engine = create_engine(url=self.engine,
-                                        echo=True,  # Todo: remove echo=True in production
-                                        connect_args={"check_same_thread": False})
+                                        echo=True)  # Todo: remove echo=True in production
         super().__post_init__()
 
     def get_session(self) -> Session:

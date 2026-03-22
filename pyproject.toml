@@ -25,6 +25,7 @@ sqlmodel = [
     "sqlmodel>=0.0.37",
 ]
 dev = [
+    "pymysql>=1.1.2",
     "pywebview>=6.1",
     "starlette-admin>=0.16.0",
 ]
