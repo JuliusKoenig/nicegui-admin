@@ -1,22 +1,12 @@
 from nicegui import ui
 
-from nicegui_admin.elements.detail_table import DetailTable
-
-
 @ui.page("/")
 async def index():
-    with DetailTable(columns=["Attribute",
-                              "Value"]).classes("w-full"):
-        ui.label('attribute1')
-        ui.label('value1')
-        ui.label('attribute2')
-        ui.label('value2')
-        ui.label('attribute3')
-        ui.label('value3')
-        ui.label('attribute4')
-        ui.label('value4')
-        ui.label('attribute5')
-        ui.label('value5')
+    ui.label("Number")
+    ui.number()
+
+    ui.label("Input")
+    ui.input().props("type='number'")
 
     dark = ui.dark_mode()
     ui.label('Switch mode:')

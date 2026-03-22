@@ -213,19 +213,15 @@ class BooleanField(BaseField):
 
 
 @dataclass
-class StringField(BaseField):
+class BaseStringField(BaseField):
     """
-    This field is used to represent any kind of short text content.
+    ToDO
 
-    :param maxlength: Maximum length of the string. If provided, it can be used for validation and UI hints.
-    :param minlength: Minimum length of the string. If provided, it can be used for validation and UI hints.
     :param placeholder: Placeholder text for the input field in the UI.
     :param clearable: Whether the input field can be cleared by clicking the clear button.
+    ToDo: docs
     """
 
-    maxlength: int | None = field(default=None)
-    minlength: int | None = field(default=None)
-    allowed_characters: str | None = field(default=None)
     empty_is_none: bool = field(default=False)
 
     class LabelFormValue(str, Enum):
@@ -235,9 +231,8 @@ class StringField(BaseField):
     label_form_value: None | LabelFormValue | str = field(default=None)
     placeholder: str | None = field(default=None)
     clearable: bool = field(default=True)
-    # prefix:	a prefix to prepend to the displayed value
-    # suffix:	a suffix to append to the displayed value
-    icon: str | None = field(default="short_text")
+    # prefix:	a prefix to prepend to the displayed value # Todo: implement prefix
+    # suffix:	a suffix to append to the displayed value # Todo: implement suffix
     cast_type: tuple[_type] | None = field(default=(str,))
 
     async def data_from_model_none(self) -> str:
@@ -270,6 +265,22 @@ class StringField(BaseField):
         if self.clearable:
             input_element.props("clearable")
         field_handler.validation_element = input_element
+
+
+@dataclass
+class StringField(BaseStringField):
+    """
+    ToDo
+
+    :param maxlength: Maximum length of the string. If provided, it can be used for validation and UI hints.
+    :param minlength: Minimum length of the string. If provided, it can be used for validation and UI hints.
+    :param allowed_characters: A string of allowed characters. If provided, it can be used for validation and UI hints.
+    """
+
+    maxlength: int | None = field(default=None)
+    minlength: int | None = field(default=None)
+    allowed_characters: str | None = field(default=None)
+    icon: str | None = field(default="short_text")
 
     async def form_value_validator(self,
                                    value: Any) -> None | str:
@@ -445,6 +456,7 @@ class UUIDField(StringField):
     icon: str | None = field(default="fingerprint")
     data_from_model_cast_type: tuple[_type] | Unset | None = field(default=(str,))
     data_to_model_cast_type: tuple[_type] | Unset | None = field(default=(UUID,))
+
 
 # @dataclass
 # class TagsField(BaseField):
