@@ -13,3 +13,30 @@ class ExportType(str, Enum):
     EXCEL = "excel"
     PDF = "pdf"
     PRINT = "print"
+
+
+# --- Field types ---
+
+class FieldDefault(str, Enum):
+    STATIC = "static"
+    DYNAMIC = "dynamic"
+
+
+class FieldInputContentType(str, Enum):
+    TEXT = "text"
+    PASSWORD = "password"
+    TEXTAREA = "textarea"
+    EMAIL = "email"
+    SEARCH = "search"
+    TEL = "tel"
+    FILE = "file"
+    NUMBER = "number"
+    URL = "url"
+    TIME = "time"
+    DATE = "date"
+    DATETIME_LOCAL = "datetime-local"
+
+
+class FieldInputLabelFormValue(str, Enum):
+    LABEL = "label"
+    HELP_TEXT = "help_text"

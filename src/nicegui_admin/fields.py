@@ -11,6 +11,7 @@ from nicegui import ui
 from nicegui.element import Element
 
 from nicegui_admin.helpers import Unset
+from nicegui_admin.types import FieldDefault, FieldInputContentType, FieldInputLabelFormValue
 
 if TYPE_CHECKING:
     from nicegui_admin.form import Form
@@ -50,12 +51,7 @@ class BaseField:
     help_text: str | None = field(default=None)
     key: str | Unset = field(default=Unset)
     not_none: bool = field(default=False)
-
-    class Default(str, Enum):
-        STATIC = "static"
-        DYNAMIC = "dynamic"
-
-    default: Default | None = field(default=None)
+    default: FieldDefault | None = field(default=None)
     default_value: Any | None = field(default=None)
     align: str | None = field(default="left")
     searchable: bool = field(default=True)  # ToDo: implement searchable
@@ -171,14 +167,14 @@ class BaseField:
                         elements["not_none"] = ui.label(text="(not none)").classes("field-form-label-not-none-text")
                     if self.default:
                         elements["use_default"] = ui.checkbox(text=f"Use default",
-                                                  value=field_handler.use_default).classes("field-form-label-default-text").props("dense size=xs")
-                        if self.default == self.Default.STATIC:
+                                                              value=field_handler.use_default).classes("field-form-label-default-text").props("dense size=xs")
+                        if self.default == FieldDefault.STATIC:
                             elements["use_default"].text += ": "
                             if type(self.default_value) == str:
                                 elements["use_default"].text += f'"{self.default_value}"'
                             else:
                                 elements["use_default"].text += str(self.default_value)
-                        elif self.default == self.Default.DYNAMIC:
+                        elif self.default == FieldDefault.DYNAMIC:
                             elements["use_default"].text += " factory"
                         elements["use_default"].bind_value(field_handler, "use_default")
                         elements["use_default"].on_value_change(
@@ -234,7 +230,6 @@ class BaseInputField(BaseField):
     A base class for fields that use an input element in the form.
 
     :param content_type: The content type defines the
-    :param empty_is_none: If True, an empty string is considered None.
     :param label_form_value: The value to use for the label in the form. Can be either None, "label", "help_text" or a string.
     If None, no label is displayed.
     If "label", the label is taken from the `label` attribute.
@@ -252,28 +247,8 @@ class BaseInputField(BaseField):
     :param minlength: Minimum length of the string. If provided, it can be used for validation and UI hints.
     """
 
-    class ContentType(str, Enum):
-        TEXT = "text"
-        PASSWORD = "password"
-        TEXTAREA = "textarea"
-        EMAIL = "email"
-        SEARCH = "search"
-        TEL = "tel"
-        FILE = "file"
-        NUMBER = "number"
-        URL = "url"
-        TIME = "time"
-        DATE = "date"
-        DATETIME_LOCAL = "datetime-local"
-        MONTH = "month"
-
-    content_type: ContentType = field(default=ContentType.TEXT)
-
-    class LabelFormValue(str, Enum):
-        LABEL = "label"
-        HELP_TEXT = "help_text"
-
-    label_form_value: None | LabelFormValue | str = field(default=None)
+    content_type: FieldInputContentType = field(default=FieldInputContentType.TEXT)
+    label_form_value: None | FieldInputLabelFormValue | str = field(default=None)
     placeholder: str | None = field(default=None)
     clearable: bool = field(default=True)
     prefix: str | None = field(default=None)
@@ -290,21 +265,21 @@ class BaseInputField(BaseField):
         elements = {}
         value_label = None
         if self.label_form_value is not None:
-            if self.label_form_value == self.LabelFormValue.LABEL:
+            if self.label_form_value == FieldInputLabelFormValue.LABEL:
                 value_label = self.label
-            elif self.label_form_value == self.LabelFormValue.HELP_TEXT:
+            elif self.label_form_value == FieldInputLabelFormValue.HELP_TEXT:
                 value_label = self.help_text
             else:
                 value_label = self.label_form_value
         elements["input"] = ui.input(value=field_handler.original_value,
-                                 label=value_label,
-                                 placeholder=self.placeholder,
-                                 prefix=self.prefix,
-                                 suffix=self.suffix,
-                                 autocomplete=self.autocomplete)
+                                     label=value_label,
+                                     placeholder=self.placeholder,
+                                     prefix=self.prefix,
+                                     suffix=self.suffix,
+                                     autocomplete=self.autocomplete)
         elements["input"].bind_value(field_handler,
-                                 "value",
-                                 forward=lambda value: "" if value is None else value)  # hint: forward is required because clearable sets value to None
+                                     "value",
+                                     forward=lambda value: "" if value is None else value)  # hint: forward is required because clearable sets value to None
         elements["input"].props(f"type='{self.content_type.value}'")
         if self.clearable:
             elements["input"].props("clearable")
@@ -444,6 +419,7 @@ class StringField(BaseInputField):
     """
     A field that represents a string value.
 
+    :param empty_is_none: If True, an empty string is considered None.
     :param mask: A string representing the mask to apply to the input field.
     Only available if the content_type is one of 'text', 'search', 'url', 'tel', or 'password'.
 
@@ -498,6 +474,7 @@ class StringField(BaseInputField):
             if self.unmasked_value:
                 elements["input"].props("unmasked-value")
         return elements
+
 
 # @dataclass
 # class TextAreaField(StringField):
