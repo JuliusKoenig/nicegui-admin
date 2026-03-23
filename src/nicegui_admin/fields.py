@@ -229,6 +229,23 @@ class BaseStringField(BaseField):
     :param prefix: A prefix to prepend to the displayed value.
     :param suffix: A suffix to append to the displayed value.
     :param autocomplete: A list of strings representing the autocomplete options for the input field.
+    :param mask: A string representing the mask to apply to the input field.
+    Only available if the content_type is one of ‘text’, ‘search’, ‘url’, ‘tel’, or ‘password’.
+    Examples:
+
+    | Token | Description                                        |
+    |-------|----------------------------------------------------|
+    | #     | Numeric                                            |
+    | S     | Letter, a to z, case insensitive                   |
+    | N     | Alphanumeric, case insensitive for letters         |
+    | A     | Letter, transformed to uppercase                   |
+    | a     | Letter, transformed to lowercase                   |
+    | X     | Alphanumeric, transformed to uppercase for letters |
+    | x     | Alphanumeric, transformed to lowercase for letters |
+    _See the full list of [token types](https://github.com/quasarframework/quasar/blob/dev/ui/src/components/input/use-mask.js#L6)._
+    :param fill_mask: If True, the mask will be initially filled with the tokens and the user has to fill the form.
+    If False, the mask will be filled with the tokens by typing.
+    :param unmasked_value: If True, the value sent to the server will be the unmasked value. If False, the value sent to the server will be the masked value.
     """
 
     class ContentType(str, Enum):
@@ -259,6 +276,9 @@ class BaseStringField(BaseField):
     prefix: str | None = field(default=None)
     suffix: str | None = field(default=None)
     autocomplete: list[str] | None = field(default=None)
+    mask: str | None = field(default=None)
+    fill_mask: bool = field(default=True)
+    unmasked_value: bool = field(default=True)
     cast_type: tuple[_type] | None = field(default=(str,))
 
     async def data_from_model_none(self) -> str:
@@ -294,6 +314,12 @@ class BaseStringField(BaseField):
         input_element.props(f"type='{self.content_type.value}'")
         if self.clearable:
             input_element.props("clearable")
+        if self.mask is not None:
+            input_element.props(f"mask='{self.mask}'")
+            if self.fill_mask:
+                input_element.props("fill-mask")
+            if self.unmasked_value:
+                input_element.props("unmasked-value")
         field_handler.validation_element = input_element
 
 
