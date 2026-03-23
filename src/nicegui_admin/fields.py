@@ -318,9 +318,11 @@ class StringField(BaseStringField):
     """
     ToDo
 
-    :param maxlength: Maximum length of the string. If provided, it can be used for validation and UI hints.
-    :param minlength: Minimum length of the string. If provided, it can be used for validation and UI hints.
     :param allowed_characters: A string of allowed characters. If provided, it can be used for validation and UI hints.
+    :param strict_allowed_characters: If True, characters not listed in `allowed_characters` are blocked directly in the input.
+    :param maxlength: Maximum length of the string. If provided, it can be used for validation and UI hints.
+    :param strict_maxlength: If True, input beyond `maxlength` is blocked directly in the input.
+    :param minlength: Minimum length of the string. If provided, it can be used for validation and UI hints.
     :param mask: A string representing the mask to apply to the input field.
     Only available if the content_type is one of ‘text’, ‘search’, ‘url’, ‘tel’, or ‘password’.
     Examples:
@@ -340,9 +342,11 @@ class StringField(BaseStringField):
     :param unmasked_value: If True, the value sent to the server will be the unmasked value. If False, the value sent to the server will be the masked value.
     """
 
-    maxlength: int | None = field(default=None)
-    minlength: int | None = field(default=None)
     allowed_characters: str | None = field(default=None)
+    strict_allowed_characters: bool = field(default=False)
+    maxlength: int | None = field(default=None)
+    strict_maxlength: bool = field(default=True)
+    minlength: int | None = field(default=None)
     mask: str | None = field(default=None)
     fill_mask: bool = field(default=True)
     unmasked_value: bool = field(default=True)
@@ -352,6 +356,102 @@ class StringField(BaseStringField):
     async def form_value(self,
                          field_handler: "Form.FieldHandler") -> dict[str, Element]:
         elements = await super().form_value(field_handler=field_handler)
+
+        if (self.strict_allowed_characters and self.allowed_characters is not None) or (self.strict_maxlength and self.maxlength is not None):
+            allowed_characters_js = ""
+            if self.allowed_characters is not None:
+                # Escape characters that are problematic inside a JavaScript string literal.
+                allowed_characters_js = (
+                    self.allowed_characters
+                    .replace("\\", "\\\\")
+                    .replace("'", "\\'")
+                    .replace("\n", "\\n")
+                    .replace("\r", "\\r")
+                )
+
+            await ui.run_javascript(f"""
+            const el = document.getElementById('{elements["input"].html_id}');
+            if (!el) return;
+
+            if (!el._strictInputRulesAdded) {{
+                el._strictInputRulesAdded = true;
+
+                const strictAllowedCharacters = {str(self.strict_allowed_characters).lower()};
+                const strictMaxlength = {str(self.strict_maxlength).lower()};
+                const allowedCharacters = '{allowed_characters_js}';
+                const maxLength = {self.maxlength if self.maxlength is not None else 'null'};
+
+                const allowedKeys = new Set([
+                    'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
+                    'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End', 'Enter'
+                ]);
+
+                function hasSelection(target) {{
+                    return (target.selectionStart ?? 0) !== (target.selectionEnd ?? 0);
+                }}
+
+                function isAllowedCharacter(char) {{
+                    if (!strictAllowedCharacters || !allowedCharacters) return true;
+                    return allowedCharacters.includes(char);
+                }}
+
+                el.addEventListener('keydown', function(e) {{
+                    // Allow control/meta shortcuts such as copy, paste, cut, select all, undo, redo.
+                    if (e.ctrlKey || e.metaKey) return;
+
+                    // Allow navigation and editing keys.
+                    if (allowedKeys.has(e.key)) return;
+
+                    // Only validate printable single-character input.
+                    if (e.key.length !== 1) return;
+
+                    // Block characters that are not explicitly allowed.
+                    if (!isAllowedCharacter(e.key)) {{
+                        e.preventDefault();
+                        return;
+                    }}
+
+                    // Prevent typing beyond the configured maximum length,
+                    // unless the current selection will be replaced.
+                    if (strictMaxlength && maxLength !== null) {{
+                        const value = e.target.value ?? '';
+                        if (!hasSelection(e.target) && value.length >= maxLength) {{
+                            e.preventDefault();
+                        }}
+                    }}
+                }});
+
+                el.addEventListener('input', function(e) {{
+                    const oldValue = e.target.value ?? '';
+                    const cursor = e.target.selectionStart ?? oldValue.length;
+                    let newValue = oldValue;
+
+                    // Remove characters that are not explicitly allowed.
+                    if (strictAllowedCharacters && allowedCharacters) {{
+                        newValue = [...newValue].filter(char => allowedCharacters.includes(char)).join('');
+                    }}
+
+                    // Trim the value to the configured maximum length.
+                    if (strictMaxlength && maxLength !== null && newValue.length > maxLength) {{
+                        newValue = newValue.slice(0, maxLength);
+                    }}
+
+                    if (newValue !== oldValue) {{
+                        const removedChars = oldValue.length - newValue.length;
+                        e.target.value = newValue;
+
+                        const newCursor = Math.max(0, cursor - Math.max(0, removedChars));
+                        try {{
+                            e.target.setSelectionRange(newCursor, newCursor);
+                        }} catch (_) {{}}
+
+                        // Notify the framework that the value has changed after sanitizing.
+                        e.target.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    }}
+                }});
+            }}
+            """)
+
         if self.mask is not None:
             elements["input"].props(f"mask='{self.mask}'")
             if self.fill_mask:
@@ -365,6 +465,8 @@ class StringField(BaseStringField):
         result = await super().form_value_validator(value=value)
         if result is not None:
             return result
+        if value is None:
+            return None
         if self.minlength is not None:
             if len(value) < self.minlength:
                 return f"Minimum length is {self.minlength}"
