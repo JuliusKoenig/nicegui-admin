@@ -229,9 +229,9 @@ class BooleanField(BaseField):
 
 
 @dataclass
-class BaseStringField(BaseField):
+class BaseInputField(BaseField):
     """
-    A base class for fields that represent string values.
+    A base class for fields that use an input element in the form.
 
     :param content_type: The content type defines the
     :param empty_is_none: If True, an empty string is considered None.
@@ -268,7 +268,6 @@ class BaseStringField(BaseField):
         MONTH = "month"
 
     content_type: ContentType = field(default=ContentType.TEXT)
-    empty_is_none: bool = field(default=False)
 
     class LabelFormValue(str, Enum):
         LABEL = "label"
@@ -285,19 +284,6 @@ class BaseStringField(BaseField):
     maxlength: int | None = field(default=None)
     strict_maxlength: bool = field(default=False)
     minlength: int | None = field(default=None)
-
-    cast_type: tuple[_type] | None = field(default=(str,))
-
-    async def data_from_model_none(self) -> str:
-        return ""
-
-    async def data_to_model_is_none(self,
-                                    value: Any) -> bool:
-        if await super().data_to_model_is_none(value):
-            return True
-        if self.empty_is_none and isinstance(value, str) and value.strip() == "":
-            return True
-        return False
 
     async def form_value(self,
                          field_handler: "Form.FieldHandler") -> dict[str, Element]:
@@ -454,7 +440,7 @@ class BaseStringField(BaseField):
 
 
 @dataclass
-class StringField(BaseStringField):
+class StringField(BaseInputField):
     """
     A field that represents a string value.
 
@@ -482,11 +468,24 @@ class StringField(BaseStringField):
     If False, the value sent to the server will be the masked value.
     """
 
+    empty_is_none: bool = field(default=False)
     mask: str | None = field(default=None)
     fill_mask: bool = field(default=True)
     unmasked_value: bool = field(default=True)
 
     icon: str | None = field(default="short_text")
+    cast_type: tuple[_type] | None = field(default=(str,))
+
+    async def data_from_model_none(self) -> str:
+        return ""
+
+    async def data_to_model_is_none(self,
+                                    value: Any) -> bool:
+        if await super().data_to_model_is_none(value):
+            return True
+        if self.empty_is_none and isinstance(value, str) and value.strip() == "":
+            return True
+        return False
 
     async def form_value(self,
                          field_handler: "Form.FieldHandler") -> dict[str, Element]:
