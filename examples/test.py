@@ -2,11 +2,11 @@ from nicegui import ui
 
 @ui.page("/")
 async def index():
-    ui.label("Number")
-    ui.number()
-
-    ui.label("Input")
-    ui.input().props("type='number'")
+    test = ui.input()
+    test.props("type='textarea'")
+    test.prefix = "Test"
+    ui.label("Value")
+    ui.label().bind_text_from(test, "value")
 
     dark = ui.dark_mode()
     ui.label('Switch mode:')
