@@ -2,7 +2,6 @@ import json
 import logging
 import re
 from dataclasses import dataclass, field
-from enum import Enum
 from ipaddress import IPv4Address, IPv6Address
 from typing import Any, TYPE_CHECKING
 from uuid import UUID
@@ -564,25 +563,26 @@ class StringField(BaseInputField):
 
 
 @dataclass
-class BaseNumberField(BaseField):
+class BaseNumberField(BaseInputField):
     """
     This is the base class for fields that represent numeric values, such as integers and decimals.
 
-    :param max: The maximum value allowed for the field. If provided, it can be used for validation and UI hints.
     :param min: The minimum value allowed for the field. If provided, it can be used for validation and UI hints.
+    :param strict_min: If True, input below the minimum value is blocked directly while typing.
+    :param max: The maximum value allowed for the field. If provided, it can be used for validation and UI hints.
+    :param strict_max: If True, input above the maximum value is blocked directly while typing.
     :param step: The step value for the field, which indicates the allowed increments between values. If provided, it can be used for validation and UI hints.
-    :param placeholder: Placeholder text for the input field in the UI.
     """
 
-    icon: str | None = field(default="numbers")
-    max: int | None = None
-    min: int | None = None
-    step: int | None = None
-    placeholder: str | None = None
-    # clearable
-    # prefix:	a prefix to prepend to the displayed value
-    # suffix:	a suffix to append to the displayed value
+    content_type: FieldInputContentType = field(default=FieldInputContentType.NUMBER)
+    min: int | None = field(default=None)
+    strict_min: bool = field(default=False)
+    max: int | None = field(default=None)
+    strict_max: bool = field(default=False)
+    step: int | None = field(default=None)
     # format:	a string like "%.2f" to format the displayed value
+
+    icon: str | None = field(default="numbers")
 
 
 @dataclass

@@ -33,12 +33,20 @@ class MyModel(SQLModel, table=True):
     boolean_attr1: bool = Field(description="Boolean attribute 1")
     boolean_attr2: bool = Field(default=False,
                                 description="Boolean attribute 2")
-    integer_attr1: int = Field(description="Integer attribute 1")
+    integer_attr1: int = Field(description="Integer attribute 1",
+                               ge=0,
+                               le=10)
     integer_attr2: int = Field(default=0,
-                               description="Integer attribute 2")
-    float_attr1: float = Field(description="Float attribute 1")
+                               description="Integer attribute 2",
+                               gt=-1,
+                               lt=11)
+    float_attr1: float = Field(description="Float attribute 1",
+                               ge=0,
+                               le=10)
     float_attr2: float = Field(default=0.0,
-                               description="Float attribute 2")
+                               description="Float attribute 2",
+                               gt=-1,
+                               lt=11)
     string_attr1: str = Field(description="String attribute 1")
     string_attr2: str = Field(default="",
                               description="String attribute 2")
