@@ -215,11 +215,18 @@ class BooleanField(BaseField):
 @dataclass
 class BaseStringField(BaseField):
     """
-    ToDO
+    A base class for fields that represent string values.
 
+    :param empty_is_none: If True, an empty string is considered None.
+    :param label_form_value: The value to use for the label in the form. Can be either None, "label", "help_text" or a string.
+    If None, no label is displayed.
+    If "label", the label is taken from the `label` attribute.
+    If "help_text", the help text is taken from the `help_text` attribute.
+    If a string is provided, it is used as the label.
     :param placeholder: Placeholder text for the input field in the UI.
     :param clearable: Whether the input field can be cleared by clicking the clear button.
-    ToDo: docs
+    :param prefix: A prefix to prepend to the displayed value.
+    :param suffix: A suffix to append to the displayed value.
     """
 
     empty_is_none: bool = field(default=False)
@@ -231,8 +238,8 @@ class BaseStringField(BaseField):
     label_form_value: None | LabelFormValue | str = field(default=None)
     placeholder: str | None = field(default=None)
     clearable: bool = field(default=True)
-    # prefix:	a prefix to prepend to the displayed value # Todo: implement prefix
-    # suffix:	a suffix to append to the displayed value # Todo: implement suffix
+    prefix: str | None = field(default=None)
+    suffix: str | None = field(default=None)
     cast_type: tuple[_type] | None = field(default=(str,))
 
     async def data_from_model_none(self) -> str:
@@ -264,6 +271,10 @@ class BaseStringField(BaseField):
                                  forward=lambda value: "" if value is None else value)  # hint: forward is required because clearable sets value to None
         if self.clearable:
             input_element.props("clearable")
+        if self.prefix:
+            input_element.prefix = self.prefix
+        if self.suffix:
+            input_element.suffix = self.suffix
         field_handler.validation_element = input_element
 
 
