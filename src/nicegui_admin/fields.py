@@ -228,6 +228,7 @@ class BaseStringField(BaseField):
     :param clearable: Whether the input field can be cleared by clicking the clear button.
     :param prefix: A prefix to prepend to the displayed value.
     :param suffix: A suffix to append to the displayed value.
+    :param autocomplete: A list of strings representing the autocomplete options for the input field.
     """
 
     class ContentType(str, Enum):
@@ -257,6 +258,7 @@ class BaseStringField(BaseField):
     clearable: bool = field(default=True)
     prefix: str | None = field(default=None)
     suffix: str | None = field(default=None)
+    autocomplete: list[str] | None = field(default=None)
     cast_type: tuple[_type] | None = field(default=(str,))
 
     async def data_from_model_none(self) -> str:
@@ -282,17 +284,16 @@ class BaseStringField(BaseField):
                 value_label = self.label_form_value
         input_element = ui.input(value=field_handler.original_value,
                                  label=value_label,
-                                 placeholder=self.placeholder)
+                                 placeholder=self.placeholder,
+                                 prefix=self.prefix,
+                                 suffix=self.suffix,
+                                 autocomplete=self.autocomplete)
         input_element.bind_value(field_handler,
                                  "value",
                                  forward=lambda value: "" if value is None else value)  # hint: forward is required because clearable sets value to None
         input_element.props(f"type='{self.content_type.value}'")
         if self.clearable:
             input_element.props("clearable")
-        if self.prefix:
-            input_element.prefix = self.prefix
-        if self.suffix:
-            input_element.suffix = self.suffix
         field_handler.validation_element = input_element
 
 
