@@ -291,9 +291,9 @@ class BaseStringField(BaseField):
         elements = {}
         value_label = None
         if self.label_form_value is not None:
-            if self.label_form_value == StringField.LabelFormValue.LABEL:
+            if self.label_form_value == self.LabelFormValue.LABEL:
                 value_label = self.label
-            elif self.label_form_value == StringField.LabelFormValue.HELP_TEXT:
+            elif self.label_form_value == self.LabelFormValue.HELP_TEXT:
                 value_label = self.help_text
             else:
                 value_label = self.label_form_value
