@@ -2,7 +2,7 @@ import enum
 import inspect
 from typing import Any, Callable, Dict, Optional, Sequence
 
-from annotated_types import MinLen, MaxLen
+from annotated_types import MinLen, MaxLen, BaseMetadata
 from sqlalchemy import ARRAY, Boolean, Column, Float, String, inspect as sqlalchemy_inspect
 from sqlalchemy.orm import (
     ColumnProperty,
@@ -199,6 +199,8 @@ class SqlModelFieldConverter(BaseSqlModelFieldConverter):
                     field_kwargs["maxlength"] = metadata.max_length
             elif isinstance(metadata, MinLen):
                 field_kwargs["minlength"] = metadata.min_length
+            elif isinstance(metadata, BaseMetadata) and hasattr(metadata, "pattern"):
+                field_kwargs["pattern"] = metadata.pattern
         return field_kwargs
 
     @classmethod

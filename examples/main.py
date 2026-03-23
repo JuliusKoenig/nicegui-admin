@@ -28,7 +28,8 @@ class MyModel(SQLModel, table=True):
                       primary_key=True,
                       description="Name of the model",
                       min_length=3,
-                      max_length=10)
+                      max_length=10,
+                      schema_extra={'pattern': r'^[A-Za-z0-9\- ]+$'})
     boolean_attr1: bool = Field(description="Boolean attribute 1")
     boolean_attr2: bool = Field(default=False,
                                 description="Boolean attribute 2")
