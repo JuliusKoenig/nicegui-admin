@@ -438,6 +438,7 @@ class BaseCrudView(BaseView):
                 ui.html().bind_content_from(form, "errors", backward=lambda v: "".join(f"<div>{line}</div>" for line in v))
         ui.button("Back", on_click=back)
 
+        # render fields
         for field in fields:
             with ui.card(align_items="stretch").classes("w-full").props("flat bordered").tight() as card:
                 field_handler = form.add_field_handler(field=field)
@@ -453,6 +454,9 @@ class BaseCrudView(BaseView):
                     await field.form_value(field_handler=field_handler)
 
                 value_section.bind_visibility_from(field_handler, "use_default", backward=lambda v: not v)
+
+        # form ready
+        form.ready()
 
     @sub_page("/edit/{pk}")
     async def edit_page(self,
@@ -505,6 +509,7 @@ class BaseCrudView(BaseView):
                 ui.html().bind_content_from(form, "errors", backward=lambda v: "".join(f"<div>{line}</div>" for line in v))
         ui.button("Back", on_click=back)
 
+        # render fields
         for field in fields:
             with ui.card(align_items="stretch").classes("w-full").props("flat bordered").tight() as card:
                 field_handler = form.add_field_handler(field=field, value=data.get(field.name))
@@ -520,3 +525,6 @@ class BaseCrudView(BaseView):
                     await field.form_value(field_handler=field_handler)
 
                 value_section.bind_visibility_from(field_handler, "use_default", backward=lambda v: not v)
+
+        # form ready
+        form.ready()

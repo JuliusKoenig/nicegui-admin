@@ -95,9 +95,14 @@ class Form:
     errors: list[str] = binding.BindableProperty()
 
     def __init__(self, view: "BaseCrudView"):
+        self._final = False
         self._view = view
         self._field_handler = []
         self.errors = []
+
+    @property
+    def final(self) -> bool:
+        return self._final
 
     @property
     def view(self) -> "BaseCrudView":
@@ -127,9 +132,14 @@ class Form:
             fields.append(handler.field)
         return fields
 
+    def ready(self):
+        self._final = True
+
     def add_field_handler(self,
                           field: "BaseField",
                           value: Any = None) -> "Form.FieldHandler":
+        if self.final:
+            raise RuntimeError("Cannot add field handler to a finalized form")
         if field.name in self.field_handler:
             raise RuntimeError(f"Field {field} already exists")
         handler = Form.FieldHandler(form=self,
@@ -139,6 +149,8 @@ class Form:
         return handler
 
     async def validate(self) -> None:
+        if not self.final:
+            return
         try:
             await self.view.form_validate(form=self)
         except FormValidationError as exc:
