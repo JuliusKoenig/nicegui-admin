@@ -456,7 +456,7 @@ class BaseStringField(BaseField):
 @dataclass
 class StringField(BaseStringField):
     """
-    ToDo
+    A field that represents a string value.
 
     :param mask: A string representing the mask to apply to the input field.
     Only available if the content_type is one of 'text', 'search', 'url', 'tel', or 'password'.
