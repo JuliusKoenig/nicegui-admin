@@ -245,6 +245,11 @@ class BaseStringField(BaseField):
     :param prefix: A prefix to prepend to the displayed value.
     :param suffix: A suffix to append to the displayed value.
     :param autocomplete: A list of strings representing the autocomplete options for the input field.
+    :param pattern: A regular expression pattern the value must match.
+    :param strict_pattern: If True, invalid input is blocked directly while typing if possible.
+    :param maxlength: Maximum length of the string. If provided, it can be used for validation and UI hints.
+    :param strict_maxlength: If True, input beyond `maxlength` is blocked directly while typing.
+    :param minlength: Minimum length of the string. If provided, it can be used for validation and UI hints.
     """
 
     class ContentType(str, Enum):
@@ -275,6 +280,12 @@ class BaseStringField(BaseField):
     prefix: str | None = field(default=None)
     suffix: str | None = field(default=None)
     autocomplete: list[str] | None = field(default=None)
+    pattern: str | None = field(default=None)
+    strict_pattern: bool = field(default=False)
+    maxlength: int | None = field(default=None)
+    strict_maxlength: bool = field(default=False)
+    minlength: int | None = field(default=None)
+
     cast_type: tuple[_type] | None = field(default=(str,))
 
     async def data_from_model_none(self) -> str:
@@ -311,58 +322,6 @@ class BaseStringField(BaseField):
         elements["input"].props(f"type='{self.content_type.value}'")
         if self.clearable:
             elements["input"].props("clearable")
-        field_handler.validation_element = elements["input"]
-        return elements
-
-
-@dataclass
-class StringField(BaseStringField):
-    """
-    ToDo
-
-    :param pattern: A regular expression pattern the value must match.
-    :param strict_pattern: If True, invalid input is blocked directly while typing if possible.
-    :param maxlength: Maximum length of the string. If provided, it can be used for validation and UI hints.
-    :param strict_maxlength: If True, input beyond `maxlength` is blocked directly while typing.
-    :param minlength: Minimum length of the string. If provided, it can be used for validation and UI hints.
-    :param mask: A string representing the mask to apply to the input field.
-    Only available if the content_type is one of 'text', 'search', 'url', 'tel', or 'password'.
-
-    Examples:
-
-    | Token | Description                                        |
-    |-------|----------------------------------------------------|
-    | #     | Numeric                                            |
-    | S     | Letter, a to z, case insensitive                   |
-    | N     | Alphanumeric, case insensitive for letters         |
-    | A     | Letter, transformed to uppercase                   |
-    | a     | Letter, transformed to lowercase                   |
-    | X     | Alphanumeric, transformed to uppercase for letters |
-    | x     | Alphanumeric, transformed to lowercase for letters |
-
-    See the full list of token types:
-    https://github.com/quasarframework/quasar/blob/dev/ui/src/components/input/use-mask.js#L6
-
-    :param fill_mask: If True, the mask will initially be filled with the tokens and the user has to fill the form.
-    If False, the mask will be filled by typing.
-    :param unmasked_value: If True, the value sent to the server will be the unmasked value.
-    If False, the value sent to the server will be the masked value.
-    """
-
-    pattern: str | None = field(default=None)
-    strict_pattern: bool = field(default=False)
-    maxlength: int | None = field(default=None)
-    strict_maxlength: bool = field(default=False)
-    minlength: int | None = field(default=None)
-    mask: str | None = field(default=None)
-    fill_mask: bool = field(default=True)
-    unmasked_value: bool = field(default=True)
-
-    icon: str | None = field(default="short_text")
-
-    async def form_value(self,
-                         field_handler: "Form.FieldHandler") -> dict[str, Element]:
-        elements = await super().form_value(field_handler=field_handler)
 
         if self.maxlength is not None and self.strict_maxlength:
             elements["input"].props(f"maxlength={self.maxlength}")
@@ -471,6 +430,49 @@ class StringField(BaseStringField):
                 }});
             }}
             """)
+
+        field_handler.validation_element = elements["input"]
+        return elements
+
+
+@dataclass
+class StringField(BaseStringField):
+    """
+    ToDo
+
+    :param mask: A string representing the mask to apply to the input field.
+    Only available if the content_type is one of 'text', 'search', 'url', 'tel', or 'password'.
+
+    Examples:
+
+    | Token | Description                                        |
+    |-------|----------------------------------------------------|
+    | #     | Numeric                                            |
+    | S     | Letter, a to z, case insensitive                   |
+    | N     | Alphanumeric, case insensitive for letters         |
+    | A     | Letter, transformed to uppercase                   |
+    | a     | Letter, transformed to lowercase                   |
+    | X     | Alphanumeric, transformed to uppercase for letters |
+    | x     | Alphanumeric, transformed to lowercase for letters |
+
+    See the full list of token types:
+    https://github.com/quasarframework/quasar/blob/dev/ui/src/components/input/use-mask.js#L6
+
+    :param fill_mask: If True, the mask will initially be filled with the tokens and the user has to fill the form.
+    If False, the mask will be filled by typing.
+    :param unmasked_value: If True, the value sent to the server will be the unmasked value.
+    If False, the value sent to the server will be the masked value.
+    """
+
+    mask: str | None = field(default=None)
+    fill_mask: bool = field(default=True)
+    unmasked_value: bool = field(default=True)
+
+    icon: str | None = field(default="short_text")
+
+    async def form_value(self,
+                         field_handler: "Form.FieldHandler") -> dict[str, Element]:
+        elements = await super().form_value(field_handler=field_handler)
 
         if self.mask is not None:
             elements["input"].props(f"mask='{self.mask}'")
