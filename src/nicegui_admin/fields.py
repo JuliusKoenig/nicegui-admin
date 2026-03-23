@@ -434,6 +434,24 @@ class BaseStringField(BaseField):
         field_handler.validation_element = elements["input"]
         return elements
 
+    async def form_value_validator(self,
+                                   value: Any) -> None | str:
+        result = await super().form_value_validator(value=value)
+        if result is not None:
+            return result
+        if value is None:
+            return None
+        if self.minlength is not None:
+            if len(value) < self.minlength:
+                return f"String should have at least {self.minlength} characters"
+        if self.maxlength is not None:
+            if len(value) > self.maxlength:
+                return f"String should have at most {self.maxlength} characters"
+        if self.pattern is not None:
+            if re.fullmatch(self.pattern, value) is None:
+                return f"String should match pattern '{self.pattern}'"
+        return None
+
 
 @dataclass
 class StringField(BaseStringField):
@@ -481,25 +499,6 @@ class StringField(BaseStringField):
             if self.unmasked_value:
                 elements["input"].props("unmasked-value")
         return elements
-
-    async def form_value_validator(self,
-                                   value: Any) -> None | str:
-        result = await super().form_value_validator(value=value)
-        if result is not None:
-            return result
-        if value is None:
-            return None
-        if self.minlength is not None:
-            if len(value) < self.minlength:
-                return f"Minimum length is {self.minlength}"
-        if self.maxlength is not None:
-            if len(value) > self.maxlength:
-                return f"Maximum length is {self.maxlength}"
-        if self.pattern is not None:
-            if re.fullmatch(self.pattern, value) is None:
-                return f"Value does not match required pattern: {self.pattern}"
-        return None
-
 
 # @dataclass
 # class TextAreaField(StringField):
