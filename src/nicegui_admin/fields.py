@@ -253,11 +253,16 @@ class BaseInputField(BaseField):
     prefix: str | None = field(default=None)
     suffix: str | None = field(default=None)
     autocomplete: list[str] | None = field(default=None)
-    pattern: str | None = field(default=None)
-    strict_pattern: bool = field(default=False)
+    pattern: str | None | Unset = field(default=Unset)
+    strict_pattern: bool | Unset = field(default=Unset)
     maxlength: int | None = field(default=None)
     strict_maxlength: bool = field(default=False)
     minlength: int | None = field(default=None)
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        self.pattern = Unset.resolve(self.pattern, None)
+        self.strict_pattern = Unset.resolve(self.strict_pattern, False)
 
     async def form_value(self,
                          field_handler: "Form.FieldHandler") -> dict[str, Element]:
@@ -408,7 +413,7 @@ class BaseInputField(BaseField):
             if len(value) > self.maxlength:
                 return f"String should have at most {self.maxlength} characters"
         if self.pattern is not None:
-            if re.fullmatch(self.pattern, value) is None:
+            if re.fullmatch(self.pattern, str(value)) is None:
                 return f"String should match pattern '{self.pattern}'"
         return None
 
@@ -584,6 +589,10 @@ class BaseNumberField(BaseInputField):
 
     icon: str | None = field(default="numbers")
 
+    def __post_init__(self) -> None:
+        self.strict_pattern = Unset.resolve(self.strict_pattern, True)
+        super().__post_init__()
+
 
 @dataclass
 class IntegerField(BaseNumberField):
@@ -592,6 +601,10 @@ class IntegerField(BaseNumberField):
     """
 
     cast_type: tuple[_type] | None = field(default=(int,))
+
+    def __post_init__(self) -> None:
+        self.pattern = Unset.resolve(self.pattern, r"^-?\d*$")  # Allow empty string and a leading minus as intermediate typing states.
+        super().__post_init__()
 
 
 @dataclass
@@ -611,6 +624,10 @@ class FloatField(BaseNumberField):
     """
 
     cast_type: tuple[_type] | None = field(default=(float,))
+
+    def __post_init__(self) -> None:
+        self.pattern = Unset.resolve(self.pattern, r"^-?(?:\d+)?(?:\.\d*)?$")  # Allow empty string, '-', '.', and '-.' as intermediate typing states.
+        super().__post_init__()
 
 
 @dataclass
