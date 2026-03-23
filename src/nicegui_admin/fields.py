@@ -1,4 +1,6 @@
+import json
 import logging
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from ipaddress import IPv4Address, IPv6Address
@@ -318,13 +320,14 @@ class StringField(BaseStringField):
     """
     ToDo
 
-    :param allowed_characters: A string of allowed characters. If provided, it can be used for validation and UI hints.
-    :param strict_allowed_characters: If True, characters not listed in `allowed_characters` are blocked directly in the input.
+    :param pattern: A regular expression pattern the value must match.
+    :param strict_pattern: If True, invalid input is blocked directly while typing if possible.
     :param maxlength: Maximum length of the string. If provided, it can be used for validation and UI hints.
-    :param strict_maxlength: If True, input beyond `maxlength` is blocked directly in the input.
+    :param strict_maxlength: If True, input beyond `maxlength` is blocked directly while typing.
     :param minlength: Minimum length of the string. If provided, it can be used for validation and UI hints.
     :param mask: A string representing the mask to apply to the input field.
-    Only available if the content_type is one of ‘text’, ‘search’, ‘url’, ‘tel’, or ‘password’.
+    Only available if the content_type is one of 'text', 'search', 'url', 'tel', or 'password'.
+
     Examples:
 
     | Token | Description                                        |
@@ -336,16 +339,20 @@ class StringField(BaseStringField):
     | a     | Letter, transformed to lowercase                   |
     | X     | Alphanumeric, transformed to uppercase for letters |
     | x     | Alphanumeric, transformed to lowercase for letters |
-    _See the full list of [token types](https://github.com/quasarframework/quasar/blob/dev/ui/src/components/input/use-mask.js#L6)._
-    :param fill_mask: If True, the mask will be initially filled with the tokens and the user has to fill the form.
-    If False, the mask will be filled with the tokens by typing.
-    :param unmasked_value: If True, the value sent to the server will be the unmasked value. If False, the value sent to the server will be the masked value.
+
+    See the full list of token types:
+    https://github.com/quasarframework/quasar/blob/dev/ui/src/components/input/use-mask.js#L6
+
+    :param fill_mask: If True, the mask will initially be filled with the tokens and the user has to fill the form.
+    If False, the mask will be filled by typing.
+    :param unmasked_value: If True, the value sent to the server will be the unmasked value.
+    If False, the value sent to the server will be the masked value.
     """
 
-    allowed_characters: str | None = field(default=None)
-    strict_allowed_characters: bool = field(default=False)
+    pattern: str | None = field(default=None)
+    strict_pattern: bool = field(default=False)
     maxlength: int | None = field(default=None)
-    strict_maxlength: bool = field(default=True)
+    strict_maxlength: bool = field(default=False)
     minlength: int | None = field(default=None)
     mask: str | None = field(default=None)
     fill_mask: bool = field(default=True)
@@ -357,17 +364,15 @@ class StringField(BaseStringField):
                          field_handler: "Form.FieldHandler") -> dict[str, Element]:
         elements = await super().form_value(field_handler=field_handler)
 
-        if (self.strict_allowed_characters and self.allowed_characters is not None) or (self.strict_maxlength and self.maxlength is not None):
-            allowed_characters_js = ""
-            if self.allowed_characters is not None:
-                # Escape characters that are problematic inside a JavaScript string literal.
-                allowed_characters_js = (
-                    self.allowed_characters
-                    .replace("\\", "\\\\")
-                    .replace("'", "\\'")
-                    .replace("\n", "\\n")
-                    .replace("\r", "\\r")
-                )
+        if self.maxlength is not None and self.strict_maxlength:
+            elements["input"].props(f"maxlength={self.maxlength}")
+
+        if self.pattern is not None:
+            elements["input"].props(f"pattern={json.dumps(self.pattern)}")
+
+        if (self.strict_pattern and self.pattern is not None) or (self.strict_maxlength and self.maxlength is not None):
+            pattern_js = "null" if self.pattern is None else json.dumps(self.pattern)
+            max_length_js = "null" if self.maxlength is None else str(self.maxlength)
 
             await ui.run_javascript(f"""
             const el = document.getElementById('{elements["input"].html_id}');
@@ -376,23 +381,26 @@ class StringField(BaseStringField):
             if (!el._strictInputRulesAdded) {{
                 el._strictInputRulesAdded = true;
 
-                const strictAllowedCharacters = {str(self.strict_allowed_characters).lower()};
+                const strictPattern = {str(self.strict_pattern).lower()};
                 const strictMaxlength = {str(self.strict_maxlength).lower()};
-                const allowedCharacters = '{allowed_characters_js}';
-                const maxLength = {self.maxlength if self.maxlength is not None else 'null'};
+                const pattern = {pattern_js};
+                const maxLength = {max_length_js};
 
                 const allowedKeys = new Set([
                     'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
                     'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End', 'Enter'
                 ]);
 
+                const fullRegex = (strictPattern && pattern !== null) ? new RegExp(pattern) : null;
+
                 function hasSelection(target) {{
                     return (target.selectionStart ?? 0) !== (target.selectionEnd ?? 0);
                 }}
 
-                function isAllowedCharacter(char) {{
-                    if (!strictAllowedCharacters || !allowedCharacters) return true;
-                    return allowedCharacters.includes(char);
+                function matches(value) {{
+                    if (!fullRegex) return true;
+                    fullRegex.lastIndex = 0;
+                    return fullRegex.test(value);
                 }}
 
                 el.addEventListener('keydown', function(e) {{
@@ -405,8 +413,14 @@ class StringField(BaseStringField):
                     // Only validate printable single-character input.
                     if (e.key.length !== 1) return;
 
-                    // Block characters that are not explicitly allowed.
-                    if (!isAllowedCharacter(e.key)) {{
+                    const value = e.target.value ?? '';
+                    const start = e.target.selectionStart ?? value.length;
+                    const end = e.target.selectionEnd ?? value.length;
+
+                    const nextValue = value.slice(0, start) + e.key + value.slice(end);
+
+                    // Block input if the next value does not match the configured pattern.
+                    if (strictPattern && fullRegex && !matches(nextValue)) {{
                         e.preventDefault();
                         return;
                     }}
@@ -414,7 +428,6 @@ class StringField(BaseStringField):
                     // Prevent typing beyond the configured maximum length,
                     // unless the current selection will be replaced.
                     if (strictMaxlength && maxLength !== null) {{
-                        const value = e.target.value ?? '';
                         if (!hasSelection(e.target) && value.length >= maxLength) {{
                             e.preventDefault();
                         }}
@@ -422,30 +435,37 @@ class StringField(BaseStringField):
                 }});
 
                 el.addEventListener('input', function(e) {{
-                    const oldValue = e.target.value ?? '';
-                    const cursor = e.target.selectionStart ?? oldValue.length;
-                    let newValue = oldValue;
-
-                    // Remove characters that are not explicitly allowed.
-                    if (strictAllowedCharacters && allowedCharacters) {{
-                        newValue = [...newValue].filter(char => allowedCharacters.includes(char)).join('');
-                    }}
+                    let value = e.target.value ?? '';
+                    const oldValue = value;
+                    const cursor = e.target.selectionStart ?? value.length;
 
                     // Trim the value to the configured maximum length.
-                    if (strictMaxlength && maxLength !== null && newValue.length > maxLength) {{
-                        newValue = newValue.slice(0, maxLength);
+                    if (strictMaxlength && maxLength !== null && value.length > maxLength) {{
+                        value = value.slice(0, maxLength);
                     }}
 
-                    if (newValue !== oldValue) {{
-                        const removedChars = oldValue.length - newValue.length;
-                        e.target.value = newValue;
+                    // Fallback for paste, autocomplete, drag and drop, and mobile keyboards.
+                    // Keep the longest prefix that still matches the configured pattern.
+                    if (strictPattern && fullRegex && !matches(value)) {{
+                        let fixed = '';
+                        for (const ch of value) {{
+                            const candidate = fixed + ch;
+                            if (matches(candidate)) {{
+                                fixed = candidate;
+                            }}
+                        }}
+                        value = fixed;
+                    }}
 
-                        const newCursor = Math.max(0, cursor - Math.max(0, removedChars));
+                    if (value !== oldValue) {{
+                        e.target.value = value;
+
+                        const newCursor = Math.min(cursor, value.length);
                         try {{
                             e.target.setSelectionRange(newCursor, newCursor);
                         }} catch (_) {{}}
 
-                        // Notify the framework that the value has changed after sanitizing.
+                        // Notify NiceGUI/Quasar that the value changed after sanitizing.
                         e.target.dispatchEvent(new Event('input', {{ bubbles: true }}));
                     }}
                 }});
@@ -473,9 +493,9 @@ class StringField(BaseStringField):
         if self.maxlength is not None:
             if len(value) > self.maxlength:
                 return f"Maximum length is {self.maxlength}"
-        if self.allowed_characters is not None:
-            if any(c not in self.allowed_characters for c in value):
-                return f"Only the following characters are allowed: {self.allowed_characters}"
+        if self.pattern is not None:
+            if re.fullmatch(self.pattern, value) is None:
+                return f"Value does not match required pattern: {self.pattern}"
         return None
 
 
