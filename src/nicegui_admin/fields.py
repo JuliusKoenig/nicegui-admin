@@ -217,6 +217,7 @@ class BaseStringField(BaseField):
     """
     A base class for fields that represent string values.
 
+    :param content_type: The content type defines the
     :param empty_is_none: If True, an empty string is considered None.
     :param label_form_value: The value to use for the label in the form. Can be either None, "label", "help_text" or a string.
     If None, no label is displayed.
@@ -229,6 +230,22 @@ class BaseStringField(BaseField):
     :param suffix: A suffix to append to the displayed value.
     """
 
+    class ContentType(str, Enum):
+        TEXT = "text"
+        PASSWORD = "password"
+        TEXTAREA = "textarea"
+        EMAIL = "email"
+        SEARCH = "search"
+        TEL = "tel"
+        FILE = "file"
+        NUMBER = "number"
+        URL = "url"
+        TIME = "time"
+        DATE = "date"
+        DATETIME_LOCAL = "datetime-local"
+        MONTH = "month"
+
+    content_type: ContentType = field(default=ContentType.TEXT)
     empty_is_none: bool = field(default=False)
 
     class LabelFormValue(str, Enum):
@@ -269,6 +286,7 @@ class BaseStringField(BaseField):
         input_element.bind_value(field_handler,
                                  "value",
                                  forward=lambda value: "" if value is None else value)  # hint: forward is required because clearable sets value to None
+        input_element.props(f"type='{self.content_type.value}'")
         if self.clearable:
             input_element.props("clearable")
         if self.prefix:
