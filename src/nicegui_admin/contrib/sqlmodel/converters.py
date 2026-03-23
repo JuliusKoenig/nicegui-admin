@@ -46,6 +46,7 @@ from nicegui_admin.fields import (
     # URLField,# ToDo: check if needed
 )
 from nicegui_admin.helpers import slugify_name
+from nicegui_admin.types import FieldDefault
 
 
 class BaseSqlModelFieldConverter(BaseFieldConverter):
@@ -161,12 +162,12 @@ class SqlModelFieldConverter(BaseSqlModelFieldConverter):
             field_kwargs["not_none"] = True
         if column.default:
             if isinstance(column.default, ScalarElementColumnDefault):
-                field_kwargs["default"] = BaseField.Default.STATIC
+                field_kwargs["default"] = FieldDefault.STATIC
                 field_kwargs["default_value"] = column.default.arg
             else:
-                field_kwargs["default"] = BaseField.Default.DYNAMIC
+                field_kwargs["default"] = FieldDefault.DYNAMIC
         elif column.server_default:
-            field_kwargs["default"] = BaseField.Default.DYNAMIC
+            field_kwargs["default"] = FieldDefault.DYNAMIC
         else:
             field_kwargs["default"] = None
         if model_field_info.title:
