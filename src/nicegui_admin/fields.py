@@ -6,6 +6,7 @@ from typing import Any, TYPE_CHECKING
 from uuid import UUID
 
 from nicegui import ui
+from nicegui.element import Element
 
 from nicegui_admin.helpers import Unset
 
@@ -120,62 +121,73 @@ class BaseField:
         return value
 
     async def list_table_header_cell(self,
-                                     table: ui.table) -> None:
-        with table.header(column_name=self.name) as header:
+                                     table: ui.table) -> dict[str, Element]:
+        elements = {}
+        with table.header(column_name=self.name) as elements["header"]:
             if self.icon:
-                ui.icon(name=self.icon).classes("field-label-header-icon mr-1")
-            ui.label(text=self.label).classes("field-label-header-text")
+                elements["icon"] = ui.icon(name=self.icon).classes("field-label-header-icon mr-1")
+            elements["label"] = ui.label(text=self.label).classes("field-label-header-text")
         if self.help_text:
-            header.tooltip(self.help_text)
+            elements["header"].tooltip(self.help_text)
+        return elements
 
     async def list_table_body_cell(self,
-                                   table: ui.table) -> None:
-        with table.cell(column_name=self.name):
-            ui.label().props(":innerHTML=\"props.row." + self.name + "\"")
+                                   table: ui.table) -> dict[str, Element]:
+        elements = {}
+        with table.cell(column_name=self.name) as elements["cell"]:
+            elements["label"] = ui.label().props(":innerHTML=\"props.row." + self.name + "\"")
+        return elements
 
-    async def detail_label(self):
-        with ui.row(align_items="center", wrap=False):
+    async def detail_label(self) -> dict[str, Element]:
+        elements = {}
+        with ui.row(align_items="center", wrap=False) as elements["row"]:
             if self.icon:
-                ui.icon(name=self.icon).classes("field-label-header-icon")
-            with ui.column().classes("gap-0"):
-                ui.label(text=self.label).classes("field-label-header-text")
+                elements["icon"] = ui.icon(name=self.icon).classes("field-label-header-icon")
+            # noinspection PyAssignmentToLoopOrWithParameter
+            with ui.column().classes("gap-0") as elements["column"]:
+                elements["label"] = ui.label(text=self.label).classes("field-label-header-text")
                 if self.help_text:
-                    ui.label(self.help_text).classes("field-label-sub-header-text")
+                    elements["help_text"] = ui.label(self.help_text).classes("field-label-sub-header-text")
+        return elements
 
     async def detail_value(self,
-                           value: Any) -> None:
-        ui.label(text=value)
+                           value: Any) -> dict[str, Element]:
+        return {"label": ui.label(text=value)}
 
     async def form_label(self,
-                         field_handler: "Form.FieldHandler") -> None:
-        with ui.row(align_items="center", wrap=False):
+                         field_handler: "Form.FieldHandler") -> dict[str, Element]:
+        elements = {}
+        with ui.row(align_items="center", wrap=False) as elements["row"]:
             if self.icon:
-                ui.icon(name=self.icon).classes("field-label-header-icon")
-            with ui.column().classes("gap-0"):
-                with ui.row(align_items="start", wrap=False).classes("gap-1"):
-                    ui.label(text=self.label).classes("field-label-header-text")
+                elements["icon"] = ui.icon(name=self.icon).classes("field-label-header-icon")
+            # noinspection PyAssignmentToLoopOrWithParameter
+            with ui.column().classes("gap-0") as elements["column"]:
+                # noinspection PyAssignmentToLoopOrWithParameter
+                with ui.row(align_items="start", wrap=False).classes("gap-1") as elements["column_row"]:
+                    elements["label"] = ui.label(text=self.label).classes("field-label-header-text")
                     if self.not_none:
-                        ui.label(text="(not none)").classes("field-form-label-not-none-text")
+                        elements["not_none"] = ui.label(text="(not none)").classes("field-form-label-not-none-text")
                     if self.default:
-                        use_default = ui.checkbox(text=f"Use default",
+                        elements["use_default"] = ui.checkbox(text=f"Use default",
                                                   value=field_handler.use_default).classes("field-form-label-default-text").props("dense size=xs")
                         if self.default == self.Default.STATIC:
-                            use_default.text += ": "
+                            elements["use_default"].text += ": "
                             if type(self.default_value) == str:
-                                use_default.text += f'"{self.default_value}"'
+                                elements["use_default"].text += f'"{self.default_value}"'
                             else:
-                                use_default.text += str(self.default_value)
+                                elements["use_default"].text += str(self.default_value)
                         elif self.default == self.Default.DYNAMIC:
-                            use_default.text += " factory"
-                        use_default.bind_value(field_handler, "use_default")
-                        use_default.on_value_change(
+                            elements["use_default"].text += " factory"
+                        elements["use_default"].bind_value(field_handler, "use_default")
+                        elements["use_default"].on_value_change(
                             lambda: field_handler.validation_element.validate(return_result=False) if field_handler.validation_element is not None else None)
                 if self.help_text:
-                    ui.label(self.help_text).classes("field-label-sub-header-text")
+                    elements["help_text"] = ui.label(self.help_text).classes("field-label-sub-header-text")
+            return elements
 
     async def form_value(self,
-                         field_handler: "Form.FieldHandler") -> None:
-        ui.label(text=field_handler.original_value).bind_text(field_handler, "value")
+                         field_handler: "Form.FieldHandler") -> dict[str, Element]:
+        return {"label": ui.label(text=field_handler.original_value).bind_text(field_handler, "value")}
 
     async def form_value_validator(self,
                                    value: Any) -> None | str:
@@ -199,17 +211,19 @@ class BooleanField(BaseField):
     cast_type: tuple[_type] | None = field(default=(bool,))
 
     async def list_table_body_cell(self,
-                                   table: ui.table) -> None:
-        with table.cell(column_name=self.name):
-            ui.badge().props(''':label="props.value ? 'true' : 'false'" :color="props.value ? 'green' : 'red'"''').classes("text-bold")
+                                   table: ui.table) -> dict[str, Element]:
+        elements = {}
+        with table.cell(column_name=self.name) as elements["cell"]:
+            elements["badge"] = ui.badge().props(''':label="props.value ? 'true' : 'false'" :color="props.value ? 'green' : 'red'"''').classes("text-bold")
+        return elements
 
     async def detail_value(self,
-                           value: Any) -> None:
-        ui.badge(text="true" if value else "false", color="green" if value else "red").classes("text-bold")
+                           value: Any) -> dict[str, Element]:
+        return {"badge": ui.badge(text="true" if value else "false", color="green" if value else "red").classes("text-bold")}
 
     async def form_value(self,
-                         field_handler: "Form.FieldHandler") -> None:
-        ui.switch(value=field_handler.original_value).bind_value(field_handler, "value")
+                         field_handler: "Form.FieldHandler") -> dict[str, Element]:
+        return {"switch": ui.switch(value=field_handler.original_value).bind_value(field_handler, "value")}
 
 
 @dataclass
@@ -229,23 +243,6 @@ class BaseStringField(BaseField):
     :param prefix: A prefix to prepend to the displayed value.
     :param suffix: A suffix to append to the displayed value.
     :param autocomplete: A list of strings representing the autocomplete options for the input field.
-    :param mask: A string representing the mask to apply to the input field.
-    Only available if the content_type is one of ‘text’, ‘search’, ‘url’, ‘tel’, or ‘password’.
-    Examples:
-
-    | Token | Description                                        |
-    |-------|----------------------------------------------------|
-    | #     | Numeric                                            |
-    | S     | Letter, a to z, case insensitive                   |
-    | N     | Alphanumeric, case insensitive for letters         |
-    | A     | Letter, transformed to uppercase                   |
-    | a     | Letter, transformed to lowercase                   |
-    | X     | Alphanumeric, transformed to uppercase for letters |
-    | x     | Alphanumeric, transformed to lowercase for letters |
-    _See the full list of [token types](https://github.com/quasarframework/quasar/blob/dev/ui/src/components/input/use-mask.js#L6)._
-    :param fill_mask: If True, the mask will be initially filled with the tokens and the user has to fill the form.
-    If False, the mask will be filled with the tokens by typing.
-    :param unmasked_value: If True, the value sent to the server will be the unmasked value. If False, the value sent to the server will be the masked value.
     """
 
     class ContentType(str, Enum):
@@ -276,9 +273,6 @@ class BaseStringField(BaseField):
     prefix: str | None = field(default=None)
     suffix: str | None = field(default=None)
     autocomplete: list[str] | None = field(default=None)
-    mask: str | None = field(default=None)
-    fill_mask: bool = field(default=True)
-    unmasked_value: bool = field(default=True)
     cast_type: tuple[_type] | None = field(default=(str,))
 
     async def data_from_model_none(self) -> str:
@@ -293,7 +287,8 @@ class BaseStringField(BaseField):
         return False
 
     async def form_value(self,
-                         field_handler: "Form.FieldHandler") -> None:
+                         field_handler: "Form.FieldHandler") -> dict[str, Element]:
+        elements = {}
         value_label = None
         if self.label_form_value is not None:
             if self.label_form_value == StringField.LabelFormValue.LABEL:
@@ -302,25 +297,20 @@ class BaseStringField(BaseField):
                 value_label = self.help_text
             else:
                 value_label = self.label_form_value
-        input_element = ui.input(value=field_handler.original_value,
+        elements["input"] = ui.input(value=field_handler.original_value,
                                  label=value_label,
                                  placeholder=self.placeholder,
                                  prefix=self.prefix,
                                  suffix=self.suffix,
                                  autocomplete=self.autocomplete)
-        input_element.bind_value(field_handler,
+        elements["input"].bind_value(field_handler,
                                  "value",
                                  forward=lambda value: "" if value is None else value)  # hint: forward is required because clearable sets value to None
-        input_element.props(f"type='{self.content_type.value}'")
+        elements["input"].props(f"type='{self.content_type.value}'")
         if self.clearable:
-            input_element.props("clearable")
-        if self.mask is not None:
-            input_element.props(f"mask='{self.mask}'")
-            if self.fill_mask:
-                input_element.props("fill-mask")
-            if self.unmasked_value:
-                input_element.props("unmasked-value")
-        field_handler.validation_element = input_element
+            elements["input"].props("clearable")
+        field_handler.validation_element = elements["input"]
+        return elements
 
 
 @dataclass
@@ -331,12 +321,44 @@ class StringField(BaseStringField):
     :param maxlength: Maximum length of the string. If provided, it can be used for validation and UI hints.
     :param minlength: Minimum length of the string. If provided, it can be used for validation and UI hints.
     :param allowed_characters: A string of allowed characters. If provided, it can be used for validation and UI hints.
+    :param mask: A string representing the mask to apply to the input field.
+    Only available if the content_type is one of ‘text’, ‘search’, ‘url’, ‘tel’, or ‘password’.
+    Examples:
+
+    | Token | Description                                        |
+    |-------|----------------------------------------------------|
+    | #     | Numeric                                            |
+    | S     | Letter, a to z, case insensitive                   |
+    | N     | Alphanumeric, case insensitive for letters         |
+    | A     | Letter, transformed to uppercase                   |
+    | a     | Letter, transformed to lowercase                   |
+    | X     | Alphanumeric, transformed to uppercase for letters |
+    | x     | Alphanumeric, transformed to lowercase for letters |
+    _See the full list of [token types](https://github.com/quasarframework/quasar/blob/dev/ui/src/components/input/use-mask.js#L6)._
+    :param fill_mask: If True, the mask will be initially filled with the tokens and the user has to fill the form.
+    If False, the mask will be filled with the tokens by typing.
+    :param unmasked_value: If True, the value sent to the server will be the unmasked value. If False, the value sent to the server will be the masked value.
     """
 
     maxlength: int | None = field(default=None)
     minlength: int | None = field(default=None)
     allowed_characters: str | None = field(default=None)
+    mask: str | None = field(default=None)
+    fill_mask: bool = field(default=True)
+    unmasked_value: bool = field(default=True)
+
     icon: str | None = field(default="short_text")
+
+    async def form_value(self,
+                         field_handler: "Form.FieldHandler") -> dict[str, Element]:
+        elements = await super().form_value(field_handler=field_handler)
+        if self.mask is not None:
+            elements["input"].props(f"mask='{self.mask}'")
+            if self.fill_mask:
+                elements["input"].props("fill-mask")
+            if self.unmasked_value:
+                elements["input"].props("unmasked-value")
+        return elements
 
     async def form_value_validator(self,
                                    value: Any) -> None | str:

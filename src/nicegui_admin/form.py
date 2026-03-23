@@ -1,6 +1,7 @@
 from typing import Any, TYPE_CHECKING
 
 from nicegui import binding
+from nicegui.element import Element
 from nicegui.elements.mixins.validation_element import ValidationElement
 
 from nicegui_admin.exceptions import FormValidationError
