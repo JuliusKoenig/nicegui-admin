@@ -275,10 +275,11 @@ class BaseAdmin(DecoratedMethodClass):
         if isinstance(error, HTTPException):
             status_code = Unset.resolve(status_code, error.status_code)
             if status_code == 404:
-                title = Unset.resolve(message, error.detail)
+                title = Unset.resolve(title, error.detail)
                 icon = Unset.resolve(icon, "search_off")
                 message = None
-            if self.debug:
+                error = None  # Do not show stack trace for 404 errors even in debug mode
+            if self.debug and error is not None:
                 title = Unset.resolve(title, error.__class__.__name__)
                 message = Unset.resolve(message, error.detail)
 
