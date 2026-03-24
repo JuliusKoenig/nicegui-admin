@@ -301,53 +301,53 @@ class BaseInputField(BaseField):
         await ui.run_javascript(f"""
         const el = document.getElementById('{input_element.html_id}');
         if (!el) return;
-
+    
         if (!el._sharedInputRuntimeAdded) {{
             el._sharedInputRuntimeAdded = true;
-
+    
             const config = {config_js};
-
+    
             const allowedKeys = new Set([
                 'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
                 'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End', 'Enter'
             ]);
-
+    
             const fullRegex = (
                 config.strict_pattern &&
                 config.pattern !== null &&
                 config.pattern !== undefined
             ) ? new RegExp(config.pattern) : null;
-
+    
             function hasSelection(target) {{
                 return (target.selectionStart ?? 0) !== (target.selectionEnd ?? 0);
             }}
-
+    
             function matchesPattern(value) {{
                 if (!fullRegex) return true;
                 fullRegex.lastIndex = 0;
                 return fullRegex.test(value);
             }}
-
+    
             function isIntermediateNumericValue(value) {{
                 return value === '' || value === '-' || value === '.' || value === '-.';
             }}
-
+    
             function parseNumericValue(value) {{
                 if (isIntermediateNumericValue(value)) return null;
                 const parsed = Number(value);
                 return Number.isNaN(parsed) ? null : parsed;
             }}
-
+    
             function sanitizeValue(value) {{
                 let result = value;
-
+    
                 // Enforce maxlength first because it is independent of semantic validation.
                 if (config.strict_maxlength && config.maxlength !== null && config.maxlength !== undefined) {{
                     if (result.length > config.maxlength) {{
                         result = result.slice(0, config.maxlength);
                     }}
                 }}
-
+    
                 // Enforce pattern by keeping the longest prefix that still matches.
                 // This is mainly intended for simple typing-friendly patterns.
                 if (config.strict_pattern && fullRegex && !matchesPattern(result)) {{
@@ -360,7 +360,7 @@ class BaseInputField(BaseField):
                     }}
                     result = fixed;
                 }}
-
+    
                 // Enforce numeric max only for parseable values.
                 if (
                     config.kind === 'number' &&
@@ -373,46 +373,70 @@ class BaseInputField(BaseField):
                         result = String(config.max);
                     }}
                 }}
-
+    
                 return result;
             }}
-
+    
             el.addEventListener('keydown', function(e) {{
                 // Allow control/meta shortcuts such as copy, paste, cut, select all, undo, redo.
                 if (e.ctrlKey || e.metaKey) return;
-
+    
+                const value = e.target.value ?? '';
+    
+                // Handle minus explicitly for numeric inputs because selectionStart/selectionEnd
+                // are unreliable on input[type="number"] in some browsers.
+                if (
+                    config.kind === 'number' &&
+                    e.key === '-' &&
+                    config.strict_pattern &&
+                    fullRegex
+                ) {{
+                    e.preventDefault();
+                    
+                    // Do nothing if the value is already negative.
+                    if (value.startsWith('-')) {{
+                        return;
+                    }}
+                
+                    const nextValue = '-' + value;
+                    const sanitizedNextValue = sanitizeValue(nextValue);
+                
+                    e.target.value = sanitizedNextValue;
+                    e.target.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    return;
+                }}
+    
                 // Allow navigation and editing keys.
                 if (allowedKeys.has(e.key)) return;
-
+    
                 // Only validate printable single-character input.
                 if (e.key.length !== 1) return;
-
-                const value = e.target.value ?? '';
+    
                 const start = e.target.selectionStart ?? value.length;
                 const end = e.target.selectionEnd ?? value.length;
-
+    
                 const nextValue = value.slice(0, start) + e.key + value.slice(end);
                 const sanitizedNextValue = sanitizeValue(nextValue);
-
+    
                 // Block the key if the simulated next value would be changed by sanitization.
                 if (sanitizedNextValue !== nextValue) {{
                     e.preventDefault();
                 }}
             }});
-
+    
             el.addEventListener('input', function(e) {{
                 const oldValue = e.target.value ?? '';
                 const cursor = e.target.selectionStart ?? oldValue.length;
                 const newValue = sanitizeValue(oldValue);
-
+    
                 if (newValue !== oldValue) {{
                     e.target.value = newValue;
-
+    
                     const newCursor = Math.min(cursor, newValue.length);
                     try {{
                         e.target.setSelectionRange(newCursor, newCursor);
                     }} catch (_) {{}}
-
+    
                     // Notify NiceGUI/Quasar that the value changed after sanitizing.
                     e.target.dispatchEvent(new Event('input', {{ bubbles: true }}));
                 }}
