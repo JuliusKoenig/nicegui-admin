@@ -260,9 +260,170 @@ class BaseInputField(BaseField):
         self.pattern = Unset.resolve(self.pattern, None)
         self.strict_pattern = Unset.resolve(self.strict_pattern, False)
 
+    def build_input_js_config(self) -> dict[str, Any]:
+        """
+        Build the JavaScript configuration used by the shared input runtime.
+
+        Subclasses can extend this configuration to add specialized behavior.
+        """
+
+        return {
+            "kind": "text",
+            "strict_pattern": self.strict_pattern,
+            "pattern": self.pattern,
+            "strict_maxlength": self.strict_maxlength,
+            "maxlength": self.maxlength,
+            "strict_max": False,
+            "max": None,
+        }
+
+    async def _apply_input_runtime(self, input_element: Element) -> None:
+        """
+        Attach the shared JavaScript runtime once to the input element.
+
+        The runtime handles:
+        - strict pattern filtering
+        - strict maxlength
+        - strict numeric max for numeric subclasses
+        """
+
+        config = self.build_input_js_config()
+
+        if not any([
+            config.get("strict_pattern") and config.get("pattern") is not None,
+            config.get("strict_maxlength") and config.get("maxlength") is not None,
+            config.get("kind") == "number" and config.get("strict_max") and config.get("max") is not None,
+        ]):
+            return
+
+        config_js = json.dumps(config)
+
+        await ui.run_javascript(f"""
+        const el = document.getElementById('{input_element.html_id}');
+        if (!el) return;
+
+        if (!el._sharedInputRuntimeAdded) {{
+            el._sharedInputRuntimeAdded = true;
+
+            const config = {config_js};
+
+            const allowedKeys = new Set([
+                'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
+                'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End', 'Enter'
+            ]);
+
+            const fullRegex = (
+                config.strict_pattern &&
+                config.pattern !== null &&
+                config.pattern !== undefined
+            ) ? new RegExp(config.pattern) : null;
+
+            function hasSelection(target) {{
+                return (target.selectionStart ?? 0) !== (target.selectionEnd ?? 0);
+            }}
+
+            function matchesPattern(value) {{
+                if (!fullRegex) return true;
+                fullRegex.lastIndex = 0;
+                return fullRegex.test(value);
+            }}
+
+            function isIntermediateNumericValue(value) {{
+                return value === '' || value === '-' || value === '.' || value === '-.';
+            }}
+
+            function parseNumericValue(value) {{
+                if (isIntermediateNumericValue(value)) return null;
+                const parsed = Number(value);
+                return Number.isNaN(parsed) ? null : parsed;
+            }}
+
+            function sanitizeValue(value) {{
+                let result = value;
+
+                // Enforce maxlength first because it is independent of semantic validation.
+                if (config.strict_maxlength && config.maxlength !== null && config.maxlength !== undefined) {{
+                    if (result.length > config.maxlength) {{
+                        result = result.slice(0, config.maxlength);
+                    }}
+                }}
+
+                // Enforce pattern by keeping the longest prefix that still matches.
+                // This is mainly intended for simple typing-friendly patterns.
+                if (config.strict_pattern && fullRegex && !matchesPattern(result)) {{
+                    let fixed = '';
+                    for (const ch of result) {{
+                        const candidate = fixed + ch;
+                        if (matchesPattern(candidate)) {{
+                            fixed = candidate;
+                        }}
+                    }}
+                    result = fixed;
+                }}
+
+                // Enforce numeric max only for parseable values.
+                if (
+                    config.kind === 'number' &&
+                    config.strict_max &&
+                    config.max !== null &&
+                    config.max !== undefined
+                ) {{
+                    const numericValue = parseNumericValue(result);
+                    if (numericValue !== null && numericValue > config.max) {{
+                        result = String(config.max);
+                    }}
+                }}
+
+                return result;
+            }}
+
+            el.addEventListener('keydown', function(e) {{
+                // Allow control/meta shortcuts such as copy, paste, cut, select all, undo, redo.
+                if (e.ctrlKey || e.metaKey) return;
+
+                // Allow navigation and editing keys.
+                if (allowedKeys.has(e.key)) return;
+
+                // Only validate printable single-character input.
+                if (e.key.length !== 1) return;
+
+                const value = e.target.value ?? '';
+                const start = e.target.selectionStart ?? value.length;
+                const end = e.target.selectionEnd ?? value.length;
+
+                const nextValue = value.slice(0, start) + e.key + value.slice(end);
+                const sanitizedNextValue = sanitizeValue(nextValue);
+
+                // Block the key if the simulated next value would be changed by sanitization.
+                if (sanitizedNextValue !== nextValue) {{
+                    e.preventDefault();
+                }}
+            }});
+
+            el.addEventListener('input', function(e) {{
+                const oldValue = e.target.value ?? '';
+                const cursor = e.target.selectionStart ?? oldValue.length;
+                const newValue = sanitizeValue(oldValue);
+
+                if (newValue !== oldValue) {{
+                    e.target.value = newValue;
+
+                    const newCursor = Math.min(cursor, newValue.length);
+                    try {{
+                        e.target.setSelectionRange(newCursor, newCursor);
+                    }} catch (_) {{}}
+
+                    // Notify NiceGUI/Quasar that the value changed after sanitizing.
+                    e.target.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                }}
+            }});
+        }}
+        """)
+
     async def form_value(self,
                          field_handler: "Form.FieldHandler") -> dict[str, Element]:
         elements = {}
+
         value_label = None
         if self.label_form_value is not None:
             if self.label_form_value == FieldInputLabelFormValue.LABEL:
@@ -271,126 +432,35 @@ class BaseInputField(BaseField):
                 value_label = self.help_text
             else:
                 value_label = self.label_form_value
-        elements["input"] = ui.input(value=field_handler.original_value,
-                                     label=value_label,
-                                     placeholder=self.placeholder,
-                                     prefix=self.prefix,
-                                     suffix=self.suffix,
-                                     autocomplete=self.autocomplete)
-        elements["input"].bind_value(field_handler,
-                                     "value",
-                                     forward=lambda value: "" if value is None else value)  # hint: forward is required because clearable sets value to None
+
+        elements["input"] = ui.input(
+            value=field_handler.original_value,
+            label=value_label,
+            placeholder=self.placeholder,
+            prefix=self.prefix,
+            suffix=self.suffix,
+            autocomplete=self.autocomplete
+        )
+
+        elements["input"].bind_value(
+            field_handler,
+            "value",
+            forward=lambda value: "" if value is None else value,
+        )  # hint: forward is required because clearable sets value to None
+
         elements["input"].props(f"type='{self.content_type.value}'")
+
         if self.clearable:
             elements["input"].props("clearable")
 
-        if self.maxlength is not None and self.strict_maxlength:
+        # Set native HTML constraints as hints where useful.
+        if self.maxlength is not None:
             elements["input"].props(f"maxlength={self.maxlength}")
 
         if self.pattern is not None:
             elements["input"].props(f"pattern={json.dumps(self.pattern)}")
 
-        if (self.strict_pattern and self.pattern is not None) or (self.strict_maxlength and self.maxlength is not None):
-            pattern_js = "null" if self.pattern is None else json.dumps(self.pattern)
-            max_length_js = "null" if self.maxlength is None else str(self.maxlength)
-
-            await ui.run_javascript(f"""
-            const el = document.getElementById('{elements["input"].html_id}');
-            if (!el) return;
-
-            if (!el._strictInputRulesAdded) {{
-                el._strictInputRulesAdded = true;
-
-                const strictPattern = {str(self.strict_pattern).lower()};
-                const strictMaxlength = {str(self.strict_maxlength).lower()};
-                const pattern = {pattern_js};
-                const maxLength = {max_length_js};
-
-                const allowedKeys = new Set([
-                    'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight',
-                    'ArrowUp', 'ArrowDown', 'Tab', 'Home', 'End', 'Enter'
-                ]);
-
-                const fullRegex = (strictPattern && pattern !== null) ? new RegExp(pattern) : null;
-
-                function hasSelection(target) {{
-                    return (target.selectionStart ?? 0) !== (target.selectionEnd ?? 0);
-                }}
-
-                function matches(value) {{
-                    if (!fullRegex) return true;
-                    fullRegex.lastIndex = 0;
-                    return fullRegex.test(value);
-                }}
-
-                el.addEventListener('keydown', function(e) {{
-                    // Allow control/meta shortcuts such as copy, paste, cut, select all, undo, redo.
-                    if (e.ctrlKey || e.metaKey) return;
-
-                    // Allow navigation and editing keys.
-                    if (allowedKeys.has(e.key)) return;
-
-                    // Only validate printable single-character input.
-                    if (e.key.length !== 1) return;
-
-                    const value = e.target.value ?? '';
-                    const start = e.target.selectionStart ?? value.length;
-                    const end = e.target.selectionEnd ?? value.length;
-
-                    const nextValue = value.slice(0, start) + e.key + value.slice(end);
-
-                    // Block input if the next value does not match the configured pattern.
-                    if (strictPattern && fullRegex && !matches(nextValue)) {{
-                        e.preventDefault();
-                        return;
-                    }}
-
-                    // Prevent typing beyond the configured maximum length,
-                    // unless the current selection will be replaced.
-                    if (strictMaxlength && maxLength !== null) {{
-                        if (!hasSelection(e.target) && value.length >= maxLength) {{
-                            e.preventDefault();
-                        }}
-                    }}
-                }});
-
-                el.addEventListener('input', function(e) {{
-                    let value = e.target.value ?? '';
-                    const oldValue = value;
-                    const cursor = e.target.selectionStart ?? value.length;
-
-                    // Trim the value to the configured maximum length.
-                    if (strictMaxlength && maxLength !== null && value.length > maxLength) {{
-                        value = value.slice(0, maxLength);
-                    }}
-
-                    // Fallback for paste, autocomplete, drag and drop, and mobile keyboards.
-                    // Keep the longest prefix that still matches the configured pattern.
-                    if (strictPattern && fullRegex && !matches(value)) {{
-                        let fixed = '';
-                        for (const ch of value) {{
-                            const candidate = fixed + ch;
-                            if (matches(candidate)) {{
-                                fixed = candidate;
-                            }}
-                        }}
-                        value = fixed;
-                    }}
-
-                    if (value !== oldValue) {{
-                        e.target.value = value;
-
-                        const newCursor = Math.min(cursor, value.length);
-                        try {{
-                            e.target.setSelectionRange(newCursor, newCursor);
-                        }} catch (_) {{}}
-
-                        // Notify NiceGUI/Quasar that the value changed after sanitizing.
-                        e.target.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                    }}
-                }});
-            }}
-            """)
+        await self._apply_input_runtime(elements["input"])
 
         field_handler.validation_element = elements["input"]
         return elements
@@ -400,17 +470,19 @@ class BaseInputField(BaseField):
         result = await super().form_value_validator(value=value)
         if result is not None:
             return result
+
         if value is None:
             return None
-        if self.minlength is not None:
-            if len(value) < self.minlength:
-                return f"String should have at least {self.minlength} characters"
-        if self.maxlength is not None:
-            if len(value) > self.maxlength:
-                return f"String should have at most {self.maxlength} characters"
-        if self.pattern is not None:
-            if re.fullmatch(self.pattern, str(value)) is None:
-                return f"String should match pattern '{self.pattern}'"
+
+        if self.minlength is not None and len(str(value)) < self.minlength:
+            return f"String should have at least {self.minlength} characters"
+
+        if self.maxlength is not None and len(str(value)) > self.maxlength:
+            return f"String should have at most {self.maxlength} characters"
+
+        if self.pattern is not None and re.fullmatch(self.pattern, str(value)) is None:
+            return f"String should match pattern '{self.pattern}'"
+
         return None
 
 
@@ -473,6 +545,7 @@ class StringField(BaseInputField):
                 elements["input"].props("fill-mask")
             if self.unmasked_value:
                 elements["input"].props("unmasked-value")
+
         return elements
 
 
@@ -568,19 +641,22 @@ class BaseNumberField(BaseInputField):
     """
     This is the base class for fields that represent numeric values, such as integers and decimals.
 
-    :param min: The minimum value allowed for the field. If provided, it can be used for validation and UI hints.
-    :param strict_min: If True, input below the minimum value is blocked directly while typing.
-    :param max: The maximum value allowed for the field. If provided, it can be used for validation and UI hints.
-    :param strict_max: If True, input above the maximum value is blocked directly while typing.
-    :param step: The step value for the field, which indicates the allowed increments between values. If provided, it can be used for validation and UI hints.
+    :param min: The minimum allowed numeric value.
+    :param ui_min: The minimum allowed numeric value in the UI. If not specified, it defaults to `min`.
+    :param max: The maximum allowed numeric value.
+    :param ui_max: The maximum allowed numeric value in the UI. If not specified, it defaults to `max`.
+    :param strict_max: If True, values above `max` are blocked or corrected directly in the UI.
+    :param step: The step size for the numeric input.
+    If not specified, it defaults to "any", which allows any numeric value. For integer fields, it typically defaults to "1".
     """
 
     content_type: FieldInputContentType = field(default=FieldInputContentType.NUMBER)
     min: int | None = field(default=None)
-    strict_min: bool = field(default=False)
+    ui_min: int | None | Unset = field(default=Unset)
     max: int | None = field(default=None)
+    ui_max: int | None| Unset = field(default=Unset)
     strict_max: bool = field(default=False)
-    step: int | None = field(default=None)
+    step: str | None | Unset = field(default=Unset)
     # format:	a string like "%.2f" to format the displayed value
 
     icon: str | None = field(default="numbers")
@@ -588,6 +664,50 @@ class BaseNumberField(BaseInputField):
     def __post_init__(self) -> None:
         self.strict_pattern = Unset.resolve(self.strict_pattern, True)
         super().__post_init__()
+        self.ui_min = Unset.resolve(self.ui_min, self.min)
+        self.ui_max = Unset.resolve(self.ui_max, self.max)
+        self.step = Unset.resolve(self.step, "any")
+
+    def build_input_js_config(self) -> dict[str, Any]:
+        config = super().build_input_js_config()
+        config.update({
+            "kind": "number",
+            "strict_max": self.strict_max,
+            "max": self.max,
+        })
+        return config
+
+    async def form_value(self,
+                         field_handler: "Form.FieldHandler") -> dict[str, Element]:
+        elements = await super().form_value(field_handler=field_handler)
+
+        if self.min is not None:
+            elements["input"].props(f"min={self.ui_min}")
+
+        if self.max is not None:
+            elements["input"].props(f"max={self.ui_max}")
+
+        if self.step is not None: # ToDo: check if needed
+            elements["input"].props(f"step={self.step}")
+
+        return elements
+
+    async def form_value_validator(self,
+                                   value: Any) -> None | str:
+        result = await super().form_value_validator(value=value)
+        if result is not None:
+            return result
+
+        if value is None:
+            return None
+
+        if self.min is not None and value < self.min:
+            return f"Number should be at least {self.min}"
+
+        if self.max is not None and value > self.max:
+            return f"Number should be at most {self.max}"
+
+        return None
 
 
 @dataclass
@@ -600,6 +720,7 @@ class IntegerField(BaseNumberField):
 
     def __post_init__(self) -> None:
         self.pattern = Unset.resolve(self.pattern, r"^-?\d*$")  # Allow empty string and a leading minus as intermediate typing states.
+        self.step = Unset.resolve(self.step, "1")
         super().__post_init__()
 
 
@@ -623,6 +744,7 @@ class FloatField(BaseNumberField):
 
     def __post_init__(self) -> None:
         self.pattern = Unset.resolve(self.pattern, r"^-?(?:\d+)?(?:\.\d*)?$")  # Allow empty string, '-', '.', and '-.' as intermediate typing states.
+        self.step = Unset.resolve(self.step, "0.1")
         super().__post_init__()
 
 

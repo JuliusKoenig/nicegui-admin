@@ -2,8 +2,8 @@ import enum
 import inspect
 from typing import Any, Callable, Dict, Optional, Sequence
 
-from annotated_types import MinLen, MaxLen, BaseMetadata
-from sqlalchemy import ARRAY, Boolean, Column, Float, String, inspect as sqlalchemy_inspect
+from annotated_types import MinLen, MaxLen, BaseMetadata, Ge, Le, Gt, Lt
+from sqlalchemy import ARRAY, Boolean, Column, Float, String, inspect as sqlalchemy_inspect, Integer
 from sqlalchemy.orm import (
     ColumnProperty,
     InstrumentedAttribute,
@@ -16,6 +16,7 @@ from sqlalchemy.sql.schema import ScalarElementColumnDefault
 from sqlmodel.main import FieldInfo, SQLModel
 
 from nicegui_admin.contrib.sqlmodel.exceptions import NotSupportedColumn, InvalidModelError
+from nicegui_admin.contrib.sqlmodel.helpers import get_python_type_from_sa_type, exclusive_min, exclusive_max
 # from nicegui_admin.contrib.sqla.fields import FileField, ImageField# ToDo: check if needed
 from nicegui_admin.converters import BaseFieldConverter, converts
 from nicegui_admin.fields import (
@@ -190,18 +191,61 @@ class SqlModelFieldConverter(BaseSqlModelFieldConverter):
         field_kwargs = {}
         if column.nullable:
             field_kwargs["empty_is_none"] = True
-        if isinstance(_type, String) and isinstance(_type.length, int) and _type.length > 0:
-            field_kwargs["maxlength"] = _type.length
+
         for metadata in model_field_info.metadata:
             if isinstance(metadata, MaxLen):
-                if "maxlength" in field_kwargs:
-                    field_kwargs["maxlength"] = min(field_kwargs["maxlength"], metadata.max_length) # ensure maxlength is not greater than the one defined in the column type
-                else:
-                    field_kwargs["maxlength"] = metadata.max_length
+                field_kwargs["maxlength"] = metadata.max_length
             elif isinstance(metadata, MinLen):
                 field_kwargs["minlength"] = metadata.min_length
             elif isinstance(metadata, BaseMetadata) and hasattr(metadata, "pattern"):
                 field_kwargs["pattern"] = metadata.pattern
+
+        # ensure maxlength is not greater than the one defined in the column type
+        if isinstance(_type, String) and isinstance(_type.length, int):
+            if "maxlength" in field_kwargs:
+                if field_kwargs["maxlength"] > _type.length:
+                    field_kwargs["maxlength"] = _type.length
+            else:
+                field_kwargs["maxlength"] = _type.length
+
+        return field_kwargs
+
+    @classmethod
+    def _number_common(cls,
+                       *,
+                       _type: Any,
+                       model_field_info: FieldInfo,
+                       **kwargs: Any) -> Dict[str, Any]:
+        field_kwargs = {}
+        python_type = get_python_type_from_sa_type(_type)
+
+        for metadata in model_field_info.metadata:
+            if isinstance(metadata, Ge):
+                field_kwargs["min"] = metadata.ge
+                field_kwargs["ui_min"] = metadata.ge
+
+            elif isinstance(metadata, Gt):
+                field_kwargs["min"] = exclusive_min(metadata.gt, python_type)
+                field_kwargs["ui_min"] = metadata.gt
+
+            elif isinstance(metadata, Le):
+                field_kwargs["max"] = metadata.le
+                field_kwargs["ui_max"] = metadata.le
+
+            elif isinstance(metadata, Lt):
+                field_kwargs["max"] = exclusive_max(metadata.lt, python_type)
+                field_kwargs["ui_max"] = metadata.lt
+
+        # Enforce unsigned lower bound
+        if getattr(_type, "unsigned", False):
+            if "min" in field_kwargs or "ui_min" in field_kwargs:
+                if field_kwargs["min"] < 0:
+                    field_kwargs["min"] = 0
+                    field_kwargs["ui_min"] = 0
+            else:
+                field_kwargs["min"] = 0
+                field_kwargs["ui_min"] = 0
+
         return field_kwargs
 
     @classmethod
@@ -281,26 +325,27 @@ class SqlModelFieldConverter(BaseSqlModelFieldConverter):
     def conv_integer(self,
                      *args: Any,
                      **kwargs: Any) -> BaseField:
-        unsigned = getattr(kwargs["_type"], "unsigned", False)
-        extra = self._common(*args, **kwargs)
-        if unsigned:
-            extra["min"] = 0
-        return IntegerField(**extra)
+        return IntegerField(**self._common(*args, **kwargs),
+                            **self._number_common(*args, **kwargs))
 
     @converts("Numeric")  # includes DECIMAL, Float/FLOAT, REAL, and DOUBLE
     def conv_numeric(self,
                      *args: Any,
                      **kwargs: Any) -> BaseField:
         if isinstance(kwargs["_type"], Float) and not kwargs["_type"].asdecimal:
-            return FloatField(**self._common(*args, **kwargs))
-        return DecimalField(**self._common(*args, **kwargs))
+            return FloatField(**self._common(*args, **kwargs),
+                              **self._number_common(*args, **kwargs))
+        return DecimalField(**self._common(*args, **kwargs),
+                            **self._number_common(*args, **kwargs))
 
     @converts("sqlalchemy.dialects.mysql.types.YEAR",
               "sqlalchemy.dialects.mysql.base.YEAR")
     def conv_mysql_year(self,
                         *args: Any,
                         **kwargs: Any) -> BaseField:
-        return IntegerField(**self._common(*args, **kwargs), min=1901, max=2155)
+        return IntegerField(**self._common(*args, **kwargs),
+                            min=1901,
+                            max=2155)
 
     # @converts("ARRAY")
     # def conv_array(self,

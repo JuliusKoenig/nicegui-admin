@@ -1,3 +1,5 @@
+import math
+from decimal import Decimal
 from typing import Any, Callable, Sequence
 
 from sqlalchemy import String, and_, cast, false, not_, or_, true
@@ -7,6 +9,7 @@ from sqlalchemy.orm import (
 )
 from sqlalchemy.orm.attributes import ScalarObjectAttributeImpl
 from sqlalchemy.sql import ClauseElement
+from sqlalchemy.sql.type_api import TypeEngine
 
 
 def __is_null(latest_attr: InstrumentedAttribute) -> Any:
@@ -105,3 +108,78 @@ def extract_column_python_type(attr: InstrumentedAttribute) -> type:
         return attr.type.python_type
     except NotImplementedError:
         return str
+
+
+def get_python_type_from_sa_type(sa_type: TypeEngine) -> type[Any] | None:
+    """
+    Try to resolve the Python type from a SQLAlchemy type.
+
+    This supports plain SQLAlchemy types as well as many TypeDecorator-based types.
+
+    :param sa_type: SQLAlchemy type to resolve.
+    :return: Python type or None if not supported.
+    """
+
+    candidates = [sa_type]
+
+    impl = getattr(sa_type, "impl", None)
+    if impl is not None:
+        candidates.append(impl)
+
+    for candidate in candidates:
+        try:
+            return candidate.python_type
+        except (NotImplementedError, AttributeError):
+            pass
+
+    return None
+
+
+def exclusive_min(value: int | float | Decimal,
+                  python_type: type[Any] | None) -> int | float | Decimal:
+    """
+    Convert an exclusive lower bound to an inclusive lower bound.
+
+    Example:
+    - Gt(5) for int -> 6
+    - Gt(5.0) for float -> next float > 5.0
+
+    :param value: The value to convert.
+    :param python_type: The type of the value.
+    :return: The converted value.
+    """
+
+    if python_type is float:
+        return math.nextafter(float(value), math.inf)
+
+    if python_type is Decimal:
+        if not isinstance(value, Decimal):
+            value = Decimal(str(value))
+        return value.next_plus()
+
+    return value + 1
+
+
+def exclusive_max(value: int | float | Decimal,
+                  python_type: type[Any] | None) -> int | float | Decimal:
+    """
+    Convert an exclusive upper bound to an inclusive upper bound.
+
+    Example:
+    - Lt(5) for int -> 4
+    - Lt(5.0) for float -> next float < 5.0
+
+    :param value: The value to convert.
+    :param python_type: The type of the value.
+    :return: The converted value.
+    """
+
+    if python_type is float:
+        return math.nextafter(float(value), -math.inf)
+
+    if python_type is Decimal:
+        if not isinstance(value, Decimal):
+            value = Decimal(str(value))
+        return value.next_minus()
+
+    return value - 1

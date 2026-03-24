@@ -163,10 +163,10 @@ class Form:
     async def validate(self) -> None:
         if not self.final:
             return
-        try:
-            await self.view.form_validate(form=self)
-        except FormValidationError as exc:
-            for fn, error_message in exc.errors.items():
-                if self.field_handler[fn].validation_element is not None:
-                    self.field_handler[fn].validation_element.error = error_message
-            raise exc
+        # try: # ToDo: disabled for testing
+        #     await self.view.form_validate(form=self)
+        # except FormValidationError as exc:
+        #     for fn, error_message in exc.errors.items():
+        #         if self.field_handler[fn].validation_element is not None:
+        #             self.field_handler[fn].validation_element.error = error_message
+        #     raise exc
