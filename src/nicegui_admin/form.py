@@ -78,16 +78,28 @@ class Form:
             self._validation_element.__class__ = patched_class
 
             async def validator(_value: Any) -> None | str:
-                if self.use_default:  # disable validation for default values
+                # disable validation for default values
+                if self.use_default:
                     return None
+
+                # validate form
                 form_field_result = None
                 try:
                     await self.form.validate()
                 except FormValidationError as exc:
                     form_field_result = exc.errors.get(self._field.name)
+
+                # try to convert value to model value to catch conversion errors and send converted value to field validators
+                try:
+                    _value = await self._field.data_to_model(data={self._field.name: _value})
+                except Exception as e:
+                    return f"Invalid value: {e}"
+
+                # validate field
                 field_result = await self._field.form_value_validator(value=_value)
                 if field_result is not None:
                     return field_result
+
                 return form_field_result
 
             self._validation_element.validation = validator

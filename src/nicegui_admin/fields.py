@@ -189,12 +189,8 @@ class BaseField:
     async def form_value_validator(self,
                                    value: Any) -> None | str:
         if self.not_none:
-            if await self.data_to_model_is_none(value=value):
+            if value is None:
                 return "This field cannot be None"
-        try:
-            await self.data_to_model(data={self.name: value})
-        except Exception as e:
-            return f"Invalid value: {e}"
         return None
 
 
