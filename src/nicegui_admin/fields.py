@@ -651,10 +651,10 @@ class BaseNumberField(BaseInputField):
     """
 
     content_type: FieldInputContentType = field(default=FieldInputContentType.NUMBER)
-    min: int | None = field(default=None)
-    ui_min: int | None | Unset = field(default=Unset)
-    max: int | None = field(default=None)
-    ui_max: int | None| Unset = field(default=Unset)
+    min: int | float | None = field(default=None)
+    ui_min: int | float | None | Unset = field(default=Unset)
+    max: int | float | None = field(default=None)
+    ui_max: int | float | None | Unset = field(default=Unset)
     strict_max: bool = field(default=False)
     step: str | None | Unset = field(default=Unset)
     # format:	a string like "%.2f" to format the displayed value
@@ -681,10 +681,10 @@ class BaseNumberField(BaseInputField):
                          field_handler: "Form.FieldHandler") -> dict[str, Element]:
         elements = await super().form_value(field_handler=field_handler)
 
-        if self.min is not None:
+        if self.ui_min is not None:
             elements["input"].props(f"min={self.ui_min}")
 
-        if self.max is not None:
+        if self.ui_max is not None:
             elements["input"].props(f"max={self.ui_max}")
 
         if self.step is not None: # ToDo: check if needed
