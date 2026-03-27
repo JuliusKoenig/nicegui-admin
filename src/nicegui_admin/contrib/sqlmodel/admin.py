@@ -1,46 +1,30 @@
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 from typing import Generator
 
 from sqlalchemy import Engine
 from sqlmodel import create_engine, Session
 
 from nicegui_admin.admin import BaseAdmin
-from nicegui_admin.helper import Unset
+from nicegui_admin.helpers import Unset
 
 
+@dataclass
 class SqlModelAdmin(BaseAdmin):
     """
     Class for implementing Admin interface with SQLModel.
+
+    :param engine: SQLAlchemy Engine instance or database URL.
     """
 
-    def __init__(self,
-                 title: str = Unset,
-                 engine: Engine | str = Unset,
-                 **kwargs):
-        """
-        :param title: Admin title.
-        :param kwargs: Other keyword arguments to be passed to the APIRouter constructor.
-        """
+    engine: Engine | str = field(default=Unset, metadata={"immutable": True})
 
-        super().__init__(title=title,
-                         **kwargs)
-
-        engine = Unset.resolve(engine, "sqlite:///database.db")
-        if type(engine) is str:
-            engine = create_engine(url=engine,
-                                   echo=True,  # Todo: remove echo=True in production
-                                   connect_args={"check_same_thread": False})
-        self._engine = engine
-
-    @property
-    def engine(self) -> Engine:
-        """
-        SQLAlchemy Engine instance used for database connection.
-
-        :return: SQLAlchemy Engine instance.
-        """
-
-        return self._engine
+    def __post_init__(self):
+        self.engine = Unset.resolve(self.engine, "sqlite:///database.db")
+        if type(self.engine) is str:
+            self.engine = create_engine(url=self.engine,
+                                        echo=True)  # Todo: remove echo=True in production
+        super().__post_init__()
 
     def get_session(self) -> Session:
         """

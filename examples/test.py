@@ -1,19 +1,18 @@
-from fastapi import FastAPI
-from nicegui import APIRouter, app, ui
+from nicegui import ui
 
-my_app = FastAPI()
-
-router = APIRouter()
-
-
-@router.page("/")
+@ui.page("/")
 async def index():
-    ui.label("Hello World!")
+    test = ui.input()
+    test.props("type='textarea'")
+    test.prefix = "Test"
+    ui.label("Value")
+    ui.label().bind_text_from(test, "value")
 
+    dark = ui.dark_mode()
+    ui.label('Switch mode:')
+    ui.button('Dark', on_click=dark.enable)
+    ui.button('Light', on_click=dark.disable)
 
-my_app.include_router(router)
-
-app.mount("/admin", my_app)
 
 if __name__ in {"__main__", "__mp_main__"}:
     ui.run(port=8000, show=False, fastapi_docs=True)

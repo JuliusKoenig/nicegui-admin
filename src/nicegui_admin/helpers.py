@@ -4,9 +4,14 @@ from abc import ABCMeta
 from dataclasses import dataclass, field
 import inspect
 from types import FrameType
-from typing import Any, TypeVar, Callable, Awaitable
+from typing import Any, TypeVar, Iterable
 
+from nicegui.element import Element
 from nicegui.helpers import is_coroutine_function
+from pydantic import ValidationError
+
+from nicegui_admin.exceptions import FormValidationError
+from nicegui_admin.types import SyncOrAsyncMethod
 
 T = TypeVar("T")
 
@@ -77,11 +82,92 @@ def slugify_name(name: str) -> str:
     return "".join(["-" + c.lower() if c.isupper() else c for c in name]).lstrip("-")
 
 
+DECORATED_METHODS: dict[str, dict[str, dict[str, Any]]] = {}
+
+
+def decorate(context: str,
+             **kwargs):
+    def decorator(func: SyncOrAsyncMethod) -> SyncOrAsyncMethod:
+        add_decorate(func, context, **kwargs)
+        return func
+
+    return decorator
+
+
+def add_decorate(func: SyncOrAsyncMethod, context: str, **kwargs) -> None:
+    global DECORATED_METHODS
+
+    if context not in DECORATED_METHODS:
+        DECORATED_METHODS[context] = {}
+    DECORATED_METHODS[context][func.__name__] = kwargs
+
+
+class DecoratedMethodClassMeta(ABCMeta):
+    def __new__(mcs, name, bases, namespace, **kwargs):
+        decorated_methods = {}
+
+        # get decorated methods from bases
+        for base in bases:
+            if hasattr(base, "___decorated_methods___"):
+                for context, methods in base.___decorated_methods___.items():
+                    if context not in decorated_methods:
+                        decorated_methods[context] = {}
+                    for method_name, method_kwargs in methods.items():
+                        decorated_methods[context][method_name] = method_kwargs
+
+        # get global DECORATED_METHODS
+        global DECORATED_METHODS
+        for context, methods in DECORATED_METHODS.items():
+            if context not in decorated_methods:
+                decorated_methods[context] = {}
+            for method_name, method_kwargs in methods.items():
+                decorated_methods[context][method_name] = method_kwargs
+        DECORATED_METHODS.clear()
+
+        namespace["___decorated_methods___"] = decorated_methods
+
+        cls = super().__new__(mcs, name, bases, namespace, **kwargs)
+        return cls
+
+
+class DecoratedMethodClass(metaclass=DecoratedMethodClassMeta):
+    ___decorated_methods___: dict[str, dict[str | SyncOrAsyncMethod, Any]]
+
+    @property
+    def __decorated_methods__(self) -> dict[str, dict[SyncOrAsyncMethod, Any]]:
+        decorated_methods = {}
+        for context, methods in self.___decorated_methods___.items():
+            decorated_methods[context] = {}
+            for method_or_method_name, method_kwargs in methods.items():
+                if isinstance(method_or_method_name, str):
+                    method = getattr(self, method_or_method_name)
+                else:
+                    method = method_or_method_name
+                decorated_methods[context][method] = method_kwargs
+        return decorated_methods
+
+    def __decorate__(self,
+                     context: str,
+                     **kwargs):
+        def decorator(func: SyncOrAsyncMethod) -> SyncOrAsyncMethod:
+            self.__add_decoration__(func,
+                                    context,
+                                    **kwargs)
+            return func
+
+        return decorator
+
+    def __add_decoration__(self, func: SyncOrAsyncMethod, context: str, **kwargs) -> None:
+        if context not in self.___decorated_methods___:
+            self.___decorated_methods___[context] = {}
+        self.___decorated_methods___[context][func] = kwargs
+
+
 WRAPPED_METHODS = []
 
 
-def wrapped_method(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> Callable[..., Any] | Callable[
-    ..., Awaitable[Any]]:
+# ToDo: check if needed
+def wrapped_method(func: SyncOrAsyncMethod) -> SyncOrAsyncMethod:
     global WRAPPED_METHODS
     if func.__name__.startswith("before_"):
         raise ValueError("Method name cannot start with 'before_'!")
@@ -92,6 +178,7 @@ def wrapped_method(func: Callable[..., Any] | Callable[..., Awaitable[Any]]) -> 
     return func
 
 
+# ToDo: check if needed
 class WrappedMethodClassMeta(ABCMeta):
     def __new__(mcs, name, bases, namespace, **kwargs):
         wrapped_methods = []
@@ -118,7 +205,7 @@ class WrappedMethodClassMeta(ABCMeta):
         return cls
 
 
-# ToDo: check if needed
+# ToDo: check if needed, if so use DecoratedMethodClassMeta instead of WrappedMethodClassMeta
 class WrappedMethodClass(metaclass=WrappedMethodClassMeta):
     def __getattribute__(self, item):
         if item not in super().__getattribute__("__wrapped_methods__"):
@@ -149,6 +236,25 @@ class WrappedMethodClass(metaclass=WrappedMethodClassMeta):
                     result = after(result)
                 return result
         return wrapper
+
+
+# @dataclass
+# class WrappedElement:
+#     cls: type[Element] = field()
+#     args: tuple = field(default_factory=tuple)
+#     kwargs: dict[str, Any] = field(default_factory=dict)
+#     props: list[str] = field(default_factory=list)
+#     classes: list[str] = field(default_factory=list)
+#     children: list["WrappedElement"] = field(default_factory=list)
+#
+#     def __call__(self) -> Element:
+#         element = self.cls(*self.args,
+#                            **self.kwargs)
+#         for prop in self.props:
+#             element.props(prop)
+#         if self.classes:
+#             print()
+#         return element
 
 
 # ToDo: check if needed
@@ -193,21 +299,92 @@ def get_file_icon(mime_type: str) -> str:
     return "fa-file"
 
 
-# ToDo: check if needed
 def not_none(value: T | None) -> T:
     """
     Safely retrieve a value that might be None and raise a ValueError if it is None.
 
-    Args:
-        value (Optional[T]): The value that might be None.
-
-    Returns:
-        T: The value if it is not None.
-
-    Raises:
-        ValueError: If the value is None.
+    :param value: The value that might be None.
+    :return: The value if it is not None.
+    :raises ValueError: If the value is None.
     """
 
     if value is not None:
         return value
-    raise ValueError("Value can not be None")  # pragma: no cover
+    raise ValueError("Value can not be None")
+
+
+CHAR_ESCAPE = "."
+CHAR_SEPARATOR = ","
+
+
+def escape(value: str) -> str:
+    """
+    Escape a string using custom escaping rules.
+
+    :param value: The string to escape.
+    :return: The escaped string.
+    """
+
+    return value.replace(CHAR_ESCAPE, CHAR_ESCAPE + CHAR_ESCAPE).replace(CHAR_SEPARATOR, CHAR_ESCAPE + CHAR_SEPARATOR)
+
+
+def iterencode(i: Iterable[str]) -> str:
+    """
+    Encode a sequence of strings into a single string. Each value in the sequence is escaped before being joined
+    with the separator character.
+
+    :param i: The sequence of strings to encode.
+    :return: The encoded string.
+    """
+
+    return CHAR_SEPARATOR.join(escape(value) for value in i)
+
+
+def iterdecode(value: str) -> tuple[str, ...]:
+    """
+    Decode an encoded string back to a tuple of string values.
+
+    :param value: The encoded string to decode.
+    :return: The decoded tuple of strings.
+    """
+
+    result = []
+    accumulator = ""
+
+    escaped = False
+
+    for char in value:
+        if not escaped:
+            if char == CHAR_ESCAPE:
+                escaped = True
+                continue
+            if char == CHAR_SEPARATOR:
+                result.append(accumulator)
+                accumulator = ""
+                continue
+        else:
+            escaped = False
+
+        accumulator += char
+
+    result.append(accumulator)
+
+    return tuple(result)
+
+def pydantic_error_to_form_validation_errors(exc: Any) -> FormValidationError:
+    """
+    Convert Pydantic Error to FormValidationError
+    """
+
+    assert isinstance(exc, ValidationError)
+    errors: dict[str | int, Any] = {}
+    for pydantic_error in exc.errors():
+        loc: tuple[int | str, ...] = pydantic_error["loc"]
+        _d = errors
+        for i in range(len(loc)):
+            if i == len(loc) - 1:
+                _d[loc[i]] = pydantic_error["msg"]
+            elif loc[i] not in _d:
+                _d[loc[i]] = {}
+            _d = _d[loc[i]]
+    return FormValidationError(errors)

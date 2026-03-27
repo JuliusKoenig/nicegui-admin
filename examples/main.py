@@ -1,82 +1,93 @@
-import json
 import random
 import string
+import uuid
+from ipaddress import IPv4Address, IPv6Address
 
-from docutils.nodes import title
-from nicegui import ui, app
+from nicegui import ui
+from sqlalchemy import String, Column
+from sqlalchemy_utils import IPAddressType
 from sqlmodel import Field, SQLModel
 
-from niceguitools.admin.contrib.sqlmodel.admin import SqlModelAdmin
-from niceguitools.admin.contrib.sqlmodel.view import SqlModelCrudView
+from nicegui_admin.contrib.sqlmodel.admin import SqlModelAdmin
+from nicegui_admin.contrib.sqlmodel.view import SqlModelCrudView
 
 
 class MyAdmin(SqlModelAdmin):
-    async def builder(self):
-        with (ui.header().classes("items-center bg-blue-100")):
-            for path, values in self.sub_pages.items():
-                button = ui.button(text=values["title"],
-                                   icon=values["icon"])
-                button.props("flat")
-                button.target = path
-                button.on_click(lambda e: ui.navigate.to(f"{e.sender.target}?qwe={''.join(random.choices(string.ascii_letters + string.digits, k=10))}"))
-            ui.button("Invalid", on_click=lambda: ui.navigate.to("/invalid")).props("flat")
-        await super().builder()
+    pass
 
 
-admin = MyAdmin()
+admin = MyAdmin(debug=True,
+                engine="mysql+pymysql://test:test@localhost/test")
 
 
-class MyModel1(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    qwe: str = Field(index=True)
+class MyModel(SQLModel, table=True):
+    id: int | None = Field(default_factory=lambda: random.randint(1, 1000),
+                           primary_key=True,
+                           description="ID of the model")
+    name: str = Field(default_factory=lambda: "".join(random.choices(string.ascii_letters, k=10)),
+                      primary_key=True,
+                      description="Name of the model",
+                      min_length=3,
+                      max_length=10,
+                      schema_extra={'pattern': r'^[A-Za-z0-9\- ]+$'})
+    boolean_attr1: bool = Field(description="Boolean attribute 1")
+    boolean_attr2: bool = Field(default=False,
+                                description="Boolean attribute 2")
+    integer_attr1: int = Field(description="Integer attribute 1",
+                               ge=0,
+                               le=10)
+    integer_attr2: int = Field(default=0,
+                               description="Integer attribute 2",
+                               gt=-1,
+                               lt=11)
+    float_attr1: float = Field(description="Float attribute 1",
+                               ge=0,
+                               le=10)
+    float_attr2: float = Field(default=0.0,
+                               description="Float attribute 2",
+                               gt=-1,
+                               lt=11)
+    string_attr1: str = Field(description="String attribute 1")
+    string_attr2: str = Field(default="",
+                              description="String attribute 2")
+    uuid_attr1: uuid.UUID = Field(description="UUID attribute 1")
+    uuid_attr2: uuid.UUID = Field(default_factory=uuid.uuid4,
+                                  description="UUID attribute 2")
+    ip_v4_address_attr1: IPv4Address = Field(description="IP address attribute 1",
+                                             sa_type=IPAddressType)
+    ip_v4_address_attr2: IPv4Address = Field(default=IPv4Address("127.0.0.1"),
+                                             description="IP address attribute 2",
+                                             sa_type=IPAddressType)
+    ip_v6_address_attr1: IPv6Address = Field(description="IP address attribute 1",
+                                             sa_type=IPAddressType)
+    ip_v6_address_attr2: IPv6Address = Field(default=IPv6Address("::1"),
+                                             description="IP address attribute 2",
+                                             sa_type=IPAddressType)
 
 
-@admin.view(model=MyModel1)
-class MyView1(SqlModelCrudView):
-    ...
+admin.add_view(SqlModelCrudView(title="Test",
+                                path="/test",
+                                model=MyModel,
+                                fields=["id",
+                                        "name",
+                                        "boolean_attr1",
+                                        "boolean_attr2",
+                                        "integer_attr1",
+                                        "integer_attr2",
+                                        "float_attr1",
+                                        "float_attr2",
+                                        "string_attr1",
+                                        "string_attr2",
+                                        "uuid_attr1",
+                                        "uuid_attr2",
+                                        "ip_v4_address_attr1",
+                                        "ip_v4_address_attr2",
+                                        "ip_v6_address_attr1",
+                                        "ip_v6_address_attr2"]))
 
-
-class MyModel2(SQLModel, table=True):
-    id: int | None = Field(default=None, primary_key=True)
-    asd: str = Field(index=True)
-
-
-test2_view = SqlModelCrudView(model=MyModel2)
-admin.add_view(test2_view)
-
-
-@admin.sub_page("/")
-def home_page():
-    ui.label("Home")
-
-
-@admin.sub_page("/test")
-def test(qwe: str = None):
-    ui.label("Test")
-    ui.label(f"qwe: {qwe}")
-
-
-@admin.sub_page("/sync_error")
-def sync_error_page():
-    raise RuntimeError("Synchronous error")
-
-
-@admin.sub_page("/async_error", title="Async Error")
-async def async_error_page():
-    raise RuntimeError("Asynchronous error")
-
-
-@test2_view.sub_page("/")
-async def index() -> None:
-    await test2_view.create({"asd": "".join(random.choices(string.ascii_letters + string.digits, k=10))})
-    result = await test2_view.list()
-    for i, item in enumerate(result):
-        item_json = json.dumps(item, indent=4)
-        ui.label(f"Item {i}:\n{item_json}")
-
-
-app.include_router(admin)
+# app.include_router(admin) # ToDo: check if it possible to act as a API Router
 
 if __name__ in {"__main__", "__mp_main__"}:
     SQLModel.metadata.create_all(admin.engine)
-    ui.run(port=8000, show=False, fastapi_docs=True)
+
+    ui.run(port=8000, show=False, fastapi_docs=True, prod_js=False)

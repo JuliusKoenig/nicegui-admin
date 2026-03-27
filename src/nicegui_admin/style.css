@@ -1,0 +1,77 @@
+body.body--light {
+    --fill-background-color: rgb(255, 255, 255);
+    --border-color: rgba(0, 0, 0, 0.12);
+    --header-font-color: rgb(50, 50, 50);
+    --sub-header-font-color: rgb(70, 70, 70);
+}
+
+body.body--dark {
+    --fill-background-color: var(--q-dark);
+    --border-color: rgba(255, 255, 255, 0.28);
+    --header-font-color: rgb(205, 205, 205);
+    --sub-header-font-color: rgb(185, 185, 185);
+}
+
+.field-label-header-icon {
+    color: var(--header-font-color);
+    font-weight: 100;
+    font-size: 20px;
+}
+
+.field-label-header-text {
+    color: var(--header-font-color);
+    font-weight: 550;
+    font-size: 14px;
+}
+
+.field-label-sub-header-text {
+    color: var(--header-font-color);
+    font-weight: 400;
+    font-size: 12px;
+}
+
+.field-form-label-not-none-text {
+    color: var(--header-font-color);
+    font-weight: 400;
+    font-size: 12px;
+    margin-top: 2px;
+}
+
+.field-form-label-default-text {
+    color: var(--header-font-color);
+    font-weight: 400;
+    font-size: 12px;
+    margin-top: 2px;
+    margin-left: 4px;
+}
+
+.table-sticky-header {
+    max-height: calc(100vh - 2rem);
+}
+
+.table-sticky-header .q-table__top, .q-table__bottom, thead tr:first-child th {
+    background-color: var(--fill-background-color)
+}
+
+.table-sticky-header thead tr th {
+    position: sticky;
+    z-index: 1;
+    top: 0
+}
+
+.table-sticky-header thead tr:first-child th {
+    top: 0
+}
+
+.table-sticky-header tbody {
+    scroll-margin-top: 48px
+}
+
+.detail-table .q-table thead, .q-table tr, .q-table th, .q-table td {
+    border-color: var(--border-color);
+    border-style: solid;
+}
+
+.detail-table thead th, .detail-table tbody tr:not(:last-child)>td, .detail-table thead th, .detail-table tbody tr:not(:last-child)>td {
+    border-bottom-width: 1px;
+}

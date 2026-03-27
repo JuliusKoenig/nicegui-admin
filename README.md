@@ -1,14 +1,116 @@
 # nicegui-admin
 A admin panel for NiceGUI.
 
+_Very early stage of development, but you can already check out the code and give feedback._
 
-## Roadmap - DEV Stage
+---
+## Current Stage --> DEV
+
+## Roadmap
 - [x] Claim Repository & PyPI Package Name
 - [ ] CRUD operations
-- [ ] Docs page
-- [ ] Actions 
+  - [ ] supporting async and sync database operations
+  - [ ] list
+    - [x] table view
+    - [ ] grid view
+    - [ ] async loading
+    - [ ] pagination
+      - [ ] offset
+      - [ ] limit
+      - [ ] save setting in user cache
+    - [ ] search(where)
+      - [ ] simple search --> dict of field and value
+      - [ ] advanced search --> dict of field and dict of operator and value
+      - [ ] search builder UI component
+    - [ ] ordering
+      - [ ] single field
+      - [ ] multiple fields
+    - [ ] export
+      - [ ] excel
+      - [ ] csv
+      - [ ] json
+      - [ ] pdf
+  - [ ] detail
+    - [x] detail view
+    - [ ] search in fields
+  - create
+    - [ ] create view
+    - [ ] validation
+    - [ ] create in list view
+  - edit
+    - [x] edit view
+    - [x] validation
+    - [ ] inline edit in list view
+    - [ ] bulk edit
+  - delete
+    - [ ] delete popup confirmation
+    - [ ] inline delete in list view
+    - [ ] bulk delete
+- Layout and UI
+  - [ ] header
+  - [ ] sidebar
+  - [ ] footer
+  - [ ] menu structure
+    - [ ] support for nested menu items
+    - [ ] support for menu icons
+  - [ ] dark mode
+  - [ ] translation and localization
+- [ ] Actions
+  - reimplement delete as action
+  - [ ] bulk actions
+  - [ ] global actions
+- [ ] Custom Views
+  - [ ] support for custom views in admin panel
+  - [x] support for custom routes in admin panel
+- [ ] Implement all starlette-admin field types
+- [ ] Implement Testsystem and cover existing code
+- [ ] Documentation
+  - [ ] complete README
+  - [ ] Create Docs page(mkdocs)
 - [ ] User Authentication, Authorization and Management
+  - [ ] User Authentication
+    - [ ] login/logout
+    - [ ] password hashing
+    - [ ] password reset
+    - [ ] oauth2/social login
+  - [ ] User Management
+    - [ ] user list
+    - [ ] user detail
+    - [ ] create user
+    - [ ] edit user
+    - [ ] delete user
 - [ ] Role-Based Access Control (RBAC)
+  - [ ] Permission resolver
+  - [ ] Role Management
+    - [ ] role types
+      - [ ] default roles (admin, editor, viewer)
+      - [ ] custom roles
+    - [ ] role list
+    - [ ] role detail
+    - [ ] create role
+    - [ ] edit role
+    - [ ] delete role
+  - [ ] Permission Management
+    - [ ] permission types
+      - [ ] crud permissions for models
+      - [ ] field permissions for fields
+      - [ ] action permissions for actions
+      - [ ] custom permissions for custom views
+    - [ ] permission list
+    - [ ] permission detail
+    - [ ] create permission
+    - [ ] edit permission
+    - [ ] delete permission
+  - [ ] Assigning Permissions to Roles
+  - [ ] Assigning Roles and Permissions to Users
+- [ ] Home Dashboard
 - [ ] Extent Action to global task Scheduler, implement periodic tasks
+  - [ ] support for Celery, RQ, Dramatiq, etc.
+- [ ] ORM/ODM support
+  - [x] sqlmodel
+  - [ ] sqlalchemy
+  - [ ] mongoengine
+  - [ ] beanie
+  - [ ] odmantic
 
 more features to be added...
