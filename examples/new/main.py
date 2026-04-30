@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, TypeVar
+from typing import Optional, TypeVar, Callable, Any
 
 from nicegui import ui, app
 
@@ -17,26 +17,19 @@ class NiceguiAdminObject:
             self.parent.add_children(self)
         print("post init")
 
-    async def on_startup(self) -> None:
-        print("startup")
-
-    async def on_shutdown(self) -> None:
-        print("shutdown")
-
-    def children(self):
+    def children(self,
+                 name: str | None = None) -> Callable[[T | type[T]], T]:
         def decorator(object_type: T | type[T]) -> T:
-            return self.add_children(object_type=object_type)
+            return self.add_children(object_type=object_type,
+                                     name=name)
         return decorator
 
     def add_children(self,
-                     object_type: T | type[T]) -> T:
+                     object_type: T | type[T],
+                     name: str | None = None) -> Callable[[T | type[T]], T]:
         if type(object_type) is type:
-            object_type = object_type(parent=self)
-        else:
-            if object_type in self._children:
-                raise ValueError("Children already exists")
-            self._children.append(object_type)
-        return object_type
+            object_type = type(object_type)
+        print()
 
 
 @dataclass()
