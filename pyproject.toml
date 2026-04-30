@@ -6,6 +6,7 @@ authors = [
     { name = "Julius Koenig", email = "info@bastelquartier.de" },
 ]
 dependencies = [
+    "fastapi-utils[all]>=0.8.0",
     "nicegui>=3.8.0",
 ]
 requires-python = ">=3.10"
